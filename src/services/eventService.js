@@ -66,11 +66,23 @@ export const eventService = {
   },
 
   async createEvent(eventData) {
-    // Generate slug from name
-    const slug = eventData.slug || eventData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+    const baseSlug = (eventData.slug || eventData.name || 'event')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)+/g, '') || 'event';
+
+    // Check existing events in store/memory to avoid slug collision
+    const existingEvents = await this.getAllEvents();
+    let uniqueSlug = baseSlug;
+    let counter = 1;
+    while (existingEvents.some(e => e.festival_id === eventData.festival_id && e.slug === uniqueSlug)) {
+      counter++;
+      uniqueSlug = `${baseSlug}-${counter}`;
+    }
+
     const payload = {
       ...eventData,
-      slug,
+      slug: uniqueSlug,
       status: eventData.status || 'upcoming'
     };
 
@@ -78,7 +90,18 @@ export const eventService = {
       try {
         // Strip virtual or join fields before sending to Supabase events table
         const { festival_slug, festival_name, festivals, ...dbPayload } = payload;
-        const { data, error } = await supabase.from('events').insert([dbPayload]).select().single();
+        let { data, error } = await supabase.from('events').insert([dbPayload]).select().single();
+
+        // Auto-resolve duplicate key collision (error 23505) by appending unique suffix and retrying
+        if (error && (error.code === '23505' || error.message?.includes('unique_festival_event_slug') || error.message?.includes('duplicate key'))) {
+          const fallbackSlug = `${baseSlug}-${Date.now().toString(36).slice(-4)}`;
+          dbPayload.slug = fallbackSlug;
+          payload.slug = fallbackSlug;
+          const retryRes = await supabase.from('events').insert([dbPayload]).select().single();
+          data = retryRes.data;
+          error = retryRes.error;
+        }
+
         if (!error && data) {
           appStore.notify('events', { type: 'INSERT', new: data });
           return data;
