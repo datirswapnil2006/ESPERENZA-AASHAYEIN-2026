@@ -271,7 +271,7 @@ export default function AdminReports() {
                   <p className="text-[11px] text-slate-500 mt-0.5 font-mono">{selectedEvent.slug}_Student_Coordinators.xlsx</p>
                 </div>
                 <button
-                  onClick={() => handleExport(() => reportService.exportStudentCoordinators('xlsx', 'all'))}
+                  onClick={() => handleExport(() => reportService.exportStudentCoordinators('xlsx', 'all', { eventId: selectedEvent.id, eventName: selectedEvent.name }))}
                   className="w-full py-2 px-3 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-bold flex items-center justify-center gap-1.5"
                 >
                   <Download className="w-3.5 h-3.5 text-primary-blue" />
@@ -286,7 +286,7 @@ export default function AdminReports() {
                   <p className="text-[11px] text-slate-500 mt-0.5 font-mono">{selectedEvent.slug}_Faculty_Coordinators.xlsx</p>
                 </div>
                 <button
-                  onClick={() => handleExport(() => reportService.exportFacultyCoordinators('xlsx'))}
+                  onClick={() => handleExport(() => reportService.exportFacultyCoordinators('xlsx', { eventId: selectedEvent.id, eventName: selectedEvent.name }))}
                   className="w-full py-2 px-3 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-bold flex items-center justify-center gap-1.5"
                 >
                   <Download className="w-3.5 h-3.5 text-primary-blue" />

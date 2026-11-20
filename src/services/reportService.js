@@ -1,6 +1,7 @@
 import { eventService } from './eventService';
 import { coordinatorService } from './coordinatorService';
 import { participantService } from './participantService';
+import { formService } from './formService';
 import { exportToCSV, exportToXLSX, exportConsolidatedWorkbook } from '../utils/exportHelpers';
 
 export const reportService = {
@@ -16,10 +17,18 @@ export const reportService = {
     return { festivals, events, assignments, participants, profiles };
   },
 
-  // Export Faculty Coordinators List
-  async exportFacultyCoordinators(format = 'xlsx') {
+  // Export Faculty Coordinators List (Global or Event-Specific)
+  async exportFacultyCoordinators(format = 'xlsx', filterOptions = {}) {
     const { assignments, events } = await this.getExportData();
-    const facultyAssignments = assignments.filter(a => a.role === 'faculty_coordinator' && a.status === 'active');
+    let facultyAssignments = assignments.filter(a => a.role === 'faculty_coordinator' && a.status === 'active');
+
+    // If filtered by eventId, only export faculty for this specific event
+    if (filterOptions.eventId) {
+      facultyAssignments = facultyAssignments.filter(a => a.event_id === filterOptions.eventId);
+    } else if (filterOptions.festivalSlug) {
+      const festivalEventIds = events.filter(e => e.festival_slug === filterOptions.festivalSlug).map(e => e.id);
+      facultyAssignments = facultyAssignments.filter(a => festivalEventIds.includes(a.event_id));
+    }
 
     const data = facultyAssignments.map((a, idx) => {
       const event = events.find(e => e.id === a.event_id);
@@ -37,18 +46,29 @@ export const reportService = {
       };
     });
 
-    const filename = 'Faculty_Coordinators_List';
+    const filename = filterOptions.eventName 
+      ? `${filterOptions.eventName.replace(/\s+/g, '_')}_Faculty_Coordinators`
+      : 'Faculty_Coordinators_List';
+
     if (format === 'csv') exportToCSV(data, filename);
     else exportToXLSX(data, filename, 'Faculty Coordinators');
   },
 
-  // Export Student Coordinators List
-  async exportStudentCoordinators(format = 'xlsx', roleFilter = 'student_coordinator') {
+  // Export Student Coordinators List (Global or Event-Specific)
+  async exportStudentCoordinators(format = 'xlsx', roleFilter = 'all', filterOptions = {}) {
     const { assignments, events } = await this.getExportData();
-    const filtered = assignments.filter(a => 
+    let filtered = assignments.filter(a => 
       (roleFilter === 'all' ? ['student_coordinator', 'co_coordinator', 'volunteer'].includes(a.role) : a.role === roleFilter) &&
       a.status === 'active'
     );
+
+    // If filtered by eventId, only export student coordinators for this specific event
+    if (filterOptions.eventId) {
+      filtered = filtered.filter(a => a.event_id === filterOptions.eventId);
+    } else if (filterOptions.festivalSlug) {
+      const festivalEventIds = events.filter(e => e.festival_slug === filterOptions.festivalSlug).map(e => e.id);
+      filtered = filtered.filter(a => festivalEventIds.includes(a.event_id));
+    }
 
     const data = filtered.map((a, idx) => {
       const event = events.find(e => e.id === a.event_id);
@@ -68,51 +88,95 @@ export const reportService = {
       };
     });
 
-    const filename = roleFilter === 'co_coordinator' ? 'Co_Coordinators_List' : 'Student_Coordinators_List';
+    let filename = filterOptions.eventName
+      ? `${filterOptions.eventName.replace(/\s+/g, '_')}_Student_Coordinators`
+      : (roleFilter === 'co_coordinator' ? 'Co_Coordinators_List' : 'Student_Coordinators_List');
+
     if (format === 'csv') exportToCSV(data, filename);
     else exportToXLSX(data, filename, 'Student Coordinators');
   },
 
-  // Export Participants List (All or filtered by event/festival)
+  // Export Participants List (Strictly filtered by event or festival, with dynamic custom answers)
   async exportParticipants(format = 'xlsx', filterOptions = {}) {
     const { participants, events } = await this.getExportData();
     let filtered = [...participants];
 
+    // Filter strictly by eventId if provided
     if (filterOptions.eventId) {
       filtered = filtered.filter(p => p.event_id === filterOptions.eventId);
     } else if (filterOptions.festivalSlug) {
       filtered = filtered.filter(p => p.festival_slug === filterOptions.festivalSlug);
     }
 
+    // If an eventId is specified, fetch the custom form fields for this event to generate named columns
+    let customFields = [];
+    if (filterOptions.eventId) {
+      try {
+        const formWithFields = await formService.getFormWithFields(filterOptions.eventId);
+        if (formWithFields?.fields) {
+          customFields = formWithFields.fields;
+        }
+      } catch (err) {
+        console.warn('Could not fetch custom form fields for export:', err);
+      }
+    }
+
     const data = filtered.map((p, idx) => {
       const event = events.find(e => e.id === p.event_id);
-      return {
+      
+      const row = {
         'S.No': idx + 1,
-        'Full Name': p.full_name,
+        'Student Full Name': p.full_name,
         'ERP Number': p.erp_number,
-        'Email': p.email,
-        'Mobile': p.mobile,
+        'College Email': p.email,
+        'Mobile Number': p.mobile,
         'Department': p.department,
-        'Year': p.year,
+        'Academic Year': p.year,
         'Section': p.section,
         'Event Name': p.event_name || event?.name || 'N/A',
         'Festival': p.festival_name || (event?.festival_slug === 'esperanza' ? 'Esperenza' : 'Aashayein'),
-        'Participation Type': p.is_team ? `Team (${p.team_name || 'N/A'})` : 'Individual',
-        'Status': (p.status || 'registered').toUpperCase(),
+        'Participation Format': p.is_team ? `Team (${p.team_name || 'N/A'})` : 'Solo Individual',
+        'Registration Status': (p.status || 'registered').toUpperCase(),
         'Registration Date': p.created_at ? new Date(p.created_at).toLocaleString() : 'N/A',
       };
+
+      // Append custom questions configured for this event
+      if (customFields.length > 0) {
+        customFields.forEach(field => {
+          const ans = p.answers ? p.answers[field.id] : undefined;
+          row[field.label] = ans !== undefined 
+            ? (typeof ans === 'object' ? JSON.stringify(ans) : String(ans))
+            : 'N/A';
+        });
+      }
+
+      return row;
     });
 
-    const prefix = filterOptions.eventName ? `${filterOptions.eventName.replace(/\s+/g, '_')}_Participants` : 'All_Festival_Participants';
+    const prefix = filterOptions.eventName 
+      ? `${filterOptions.eventName.replace(/\s+/g, '_')}_Participants` 
+      : 'All_Festival_Participants';
+
     if (format === 'csv') exportToCSV(data, prefix);
     else exportToXLSX(data, prefix, 'Participants');
   },
 
-  // Export Complete Event Package (Participants, Faculty, Student coordinators)
+  // Export Complete Event Package (Participants + Faculty + Student Coordinators for that event ONLY)
   async exportEventCompleteReport(eventId, eventName, format = 'xlsx') {
     const { assignments, participants } = await this.getExportData();
-    const eventAssignments = assignments.filter(a => a.event_id === eventId);
+    const eventAssignments = assignments.filter(a => a.event_id === eventId && a.status === 'active');
     const eventParticipants = participants.filter(p => p.event_id === eventId);
+
+    // Fetch custom form fields for this event
+    let customFields = [];
+    try {
+      const formWithFields = await formService.getFormWithFields(eventId);
+      if (formWithFields?.fields) {
+        customFields = formWithFields.fields;
+      }
+    } catch (err) {
+      console.warn('Form fields fetch error:', err);
+    }
 
     const facultySheet = eventAssignments
       .filter(a => a.role === 'faculty_coordinator')
@@ -124,7 +188,7 @@ export const reportService = {
         'Department': a.profiles?.department || 'N/A',
         'Email': a.profiles?.email || 'N/A',
         'Mobile': a.profiles?.mobile || 'N/A',
-        'Status': a.status
+        'Status': a.status.toUpperCase()
       }));
 
     const studentSheet = eventAssignments
@@ -134,24 +198,38 @@ export const reportService = {
         'Student Name': a.profiles?.full_name || 'N/A',
         'ERP Number': a.profiles?.erp_number || 'N/A',
         'Department': a.profiles?.department || 'N/A',
+        'Year & Sec': `${a.profiles?.year || 'Student'} - Sec ${a.profiles?.section || 'A'}`,
         'Role': a.role.replace('_', ' ').toUpperCase(),
         'Email': a.profiles?.email || 'N/A',
         'Mobile': a.profiles?.mobile || 'N/A',
-        'Status': a.status
+        'Status': a.status.toUpperCase()
       }));
 
-    const participantSheet = eventParticipants.map((p, i) => ({
-      'S.No': i + 1,
-      'Student Name': p.full_name,
-      'ERP Number': p.erp_number,
-      'Email': p.email,
-      'Mobile': p.mobile,
-      'Department': p.department,
-      'Year & Sec': `${p.year} - ${p.section}`,
-      'Format': p.is_team ? `Team (${p.team_name || ''})` : 'Solo',
-      'Status': p.status.toUpperCase(),
-      'Registered At': new Date(p.created_at).toLocaleString()
-    }));
+    const participantSheet = eventParticipants.map((p, i) => {
+      const row = {
+        'S.No': i + 1,
+        'Student Full Name': p.full_name,
+        'ERP Number': p.erp_number,
+        'College Email': p.email,
+        'Mobile Number': p.mobile,
+        'Department': p.department,
+        'Year & Sec': `${p.year} - ${p.section}`,
+        'Format': p.is_team ? `Team (${p.team_name || ''})` : 'Solo Individual',
+        'Status': p.status.toUpperCase(),
+        'Registered At': new Date(p.created_at).toLocaleString()
+      };
+
+      if (customFields.length > 0) {
+        customFields.forEach(field => {
+          const ans = p.answers ? p.answers[field.id] : undefined;
+          row[field.label] = ans !== undefined 
+            ? (typeof ans === 'object' ? JSON.stringify(ans) : String(ans))
+            : 'N/A';
+        });
+      }
+
+      return row;
+    });
 
     const cleanName = eventName.replace(/\s+/g, '_');
 
@@ -167,7 +245,7 @@ export const reportService = {
     ], `${cleanName}_Complete_Report`);
   },
 
-  // Export Consolidated Master Excel Workbook
+  // Export Consolidated Master Excel Workbook (8 sheets)
   async exportConsolidatedFestivalWorkbook() {
     const { festivals, events, assignments, participants } = await this.getExportData();
 

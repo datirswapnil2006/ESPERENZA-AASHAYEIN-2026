@@ -834,13 +834,13 @@ export default function AdminEventFolderView() {
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => reportService.exportStudentCoordinators('xlsx', 'all')}
+                    onClick={() => reportService.exportStudentCoordinators('xlsx', 'all', { eventId: event.id, eventName: event.name })}
                     className="flex-1 py-2 px-2.5 rounded-xl bg-light-blue-100 text-primary-blue hover:bg-light-blue-200 text-xs font-bold"
                   >
                     XLSX
                   </button>
                   <button
-                    onClick={() => reportService.exportStudentCoordinators('csv', 'all')}
+                    onClick={() => reportService.exportStudentCoordinators('csv', 'all', { eventId: event.id, eventName: event.name })}
                     className="flex-1 py-2 px-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold"
                   >
                     CSV
@@ -864,13 +864,13 @@ export default function AdminEventFolderView() {
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => reportService.exportFacultyCoordinators('xlsx')}
+                    onClick={() => reportService.exportFacultyCoordinators('xlsx', { eventId: event.id, eventName: event.name })}
                     className="flex-1 py-2 px-2.5 rounded-xl bg-light-blue-100 text-primary-blue hover:bg-light-blue-200 text-xs font-bold"
                   >
                     XLSX
                   </button>
                   <button
-                    onClick={() => reportService.exportFacultyCoordinators('csv')}
+                    onClick={() => reportService.exportFacultyCoordinators('csv', { eventId: event.id, eventName: event.name })}
                     className="flex-1 py-2 px-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold"
                   >
                     CSV
