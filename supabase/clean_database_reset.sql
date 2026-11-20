@@ -3,6 +3,10 @@
 -- Run this in your Supabase SQL Editor to wipe all dummy data and reset tables
 -- =========================================================================
 
+-- Enable pgcrypto for password hashing
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 -- 1. Truncate all participant entries, dynamic forms, and coordinator assignments
 TRUNCATE TABLE public.participants CASCADE;
 TRUNCATE TABLE public.form_fields CASCADE;
@@ -11,39 +15,86 @@ TRUNCATE TABLE public.event_assignments CASCADE;
 TRUNCATE TABLE public.announcements CASCADE;
 TRUNCATE TABLE public.audit_logs CASCADE;
 
--- 2. Remove all dummy events (leaving a clean slate for creating new events)
+-- 2. Remove all dummy events (leaves a clean slate to add new events)
 TRUNCATE TABLE public.events CASCADE;
 
--- 3. Remove all dummy accounts except the primary Super Admin
+-- 3. Delete non-admin profiles and non-admin auth accounts
 DELETE FROM public.profiles WHERE role != 'super_admin';
+DELETE FROM auth.users WHERE email != 'admin@festival.edu';
 
--- 4. Ensure Super Admin profile exists with full administrative privileges
-INSERT INTO public.profiles (
-  id,
-  email,
-  full_name,
-  role,
-  department,
-  mobile,
-  is_verified,
-  designation,
-  employee_id
-)
-VALUES (
-  'admin-primary-001',
-  'admin@festival.edu',
-  'Dr. Rajesh Sharma',
-  'super_admin',
-  'Central Festival Administration',
-  '+91 98765 00001',
-  true,
-  'Dean & Super Administrator',
-  'ADMIN-001'
-)
-ON CONFLICT (id) DO UPDATE SET
-  role = 'super_admin',
-  is_verified = true,
-  email = 'admin@festival.edu';
+-- 4. Create or update the official Super Admin account in auth.users and public.profiles
+DO $$
+DECLARE
+  v_admin_id UUID := '00000000-0000-0000-0000-000000000001';
+BEGIN
+  -- Check if admin exists in auth.users
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'admin@festival.edu') THEN
+    INSERT INTO auth.users (
+      id,
+      instance_id,
+      email,
+      encrypted_password,
+      email_confirmed_at,
+      raw_app_meta_data,
+      raw_user_meta_data,
+      created_at,
+      updated_at,
+      role,
+      aud,
+      confirmation_token
+    ) VALUES (
+      v_admin_id,
+      '00000000-0000-0000-0000-000000000000',
+      'admin@festival.edu',
+      crypt('Admin@2026', gen_salt('bf')),
+      NOW(),
+      '{"provider":"email","providers":["email"]}'::jsonb,
+      '{"full_name":"Dr. Rajesh Sharma","role":"super_admin","department":"Central Festival Administration"}'::jsonb,
+      NOW(),
+      NOW(),
+      'authenticated',
+      'authenticated',
+      ''
+    );
+  ELSE
+    -- If admin already exists, update password to Admin@2026 and get their ID
+    SELECT id INTO v_admin_id FROM auth.users WHERE email = 'admin@festival.edu' LIMIT 1;
+    UPDATE auth.users 
+    SET encrypted_password = crypt('Admin@2026', gen_salt('bf')),
+        email_confirmed_at = COALESCE(email_confirmed_at, NOW()),
+        raw_user_meta_data = '{"full_name":"Dr. Rajesh Sharma","role":"super_admin","department":"Central Festival Administration"}'::jsonb
+    WHERE id = v_admin_id;
+  END IF;
+
+  -- Ensure Super Admin profile exists in public.profiles with valid UUID
+  INSERT INTO public.profiles (
+    id,
+    email,
+    full_name,
+    role,
+    department,
+    mobile,
+    is_verified,
+    designation,
+    employee_id
+  ) VALUES (
+    v_admin_id,
+    'admin@festival.edu',
+    'Dr. Rajesh Sharma',
+    'super_admin',
+    'Central Festival Administration',
+    '+91 98765 00001',
+    true,
+    'Dean & Super Administrator',
+    'ADMIN-001'
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    role = 'super_admin',
+    is_verified = true,
+    email = 'admin@festival.edu',
+    full_name = 'Dr. Rajesh Sharma';
+
+END $$;
 
 -- 5. Ensure core festival shells exist for Esperenza & Aashayein
 INSERT INTO public.festivals (
@@ -71,5 +122,5 @@ INSERT INTO public.festivals (
 )
 ON CONFLICT (id) DO NOTHING;
 
--- Verification query
-SELECT 'Reset Complete. Active Profiles:' as status, count(*) from public.profiles;
+-- Verification summary
+SELECT 'Database Clean Reset Complete' as status, count(*) as active_profiles from public.profiles;

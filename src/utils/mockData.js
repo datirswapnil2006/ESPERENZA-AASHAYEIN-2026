@@ -34,7 +34,7 @@ export const initialEvents = [];
 // Super Administrator single official account
 export const initialProfiles = [
   {
-    id: 'admin-primary-001',
+    id: '00000000-0000-0000-0000-000000000001',
     email: 'admin@festival.edu',
     full_name: 'Dr. Rajesh Sharma',
     role: 'super_admin',
