@@ -39,9 +39,16 @@ export function AuthProvider({ children }) {
       if (savedUser) {
         try {
           const parsed = JSON.parse(savedUser);
-          setUser(parsed);
-          const found = appStore.profiles.find(p => p.id === parsed.id || p.email === parsed.email);
-          setProfile(found || parsed);
+          const found = appStore.profiles.find(p => p.email?.toLowerCase() === parsed.email?.toLowerCase());
+          if (found) {
+            setUser(found);
+            setProfile(found);
+          } else {
+            // Clean up removed dummy accounts
+            localStorage.removeItem('ea_auth_user');
+            setUser(null);
+            setProfile(null);
+          }
         } catch (e) {
           localStorage.removeItem('ea_auth_user');
         }
@@ -115,10 +122,13 @@ export function AuthProvider({ children }) {
         const userProf = await fetchProfile(data.user.id);
         return { user: data.user, profile: userProf };
       } else {
-        // Find existing profile in local mock
+        // Find existing profile in local store
         const existing = appStore.profiles.find(p => p.email.toLowerCase() === email.toLowerCase());
         if (!existing) {
-          throw new Error('User not found. Try one of the test accounts or register a new coordinator.');
+          throw new Error('Account not found. Please verify your email or register as coordinator.');
+        }
+        if (existing.role === 'super_admin' && password !== 'Admin@2026') {
+          throw new Error('Invalid Super Admin password. Use Admin@2026');
         }
         setUser(existing);
         setProfile(existing);

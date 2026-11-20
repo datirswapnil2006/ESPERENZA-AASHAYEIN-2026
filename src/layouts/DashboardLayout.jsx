@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import DemoSwitcher from '../components/common/DemoSwitcher';
 import {
   Sparkles,
   LayoutDashboard,
@@ -492,8 +491,6 @@ export default function DashboardLayout() {
           </>
         )}
       </div>
-
-      <DemoSwitcher />
     </div>
   );
 }

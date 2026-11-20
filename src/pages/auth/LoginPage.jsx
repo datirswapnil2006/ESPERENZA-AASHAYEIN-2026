@@ -7,12 +7,8 @@ import {
   Lock, 
   Mail, 
   ArrowRight, 
-  AlertCircle, 
-  Shield, 
-  GraduationCap, 
-  User, 
-  Clock,
-  KeyRound
+  AlertCircle,
+  ShieldCheck
 } from 'lucide-react';
 
 export default function LoginPage() {
@@ -23,43 +19,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
 
-  const { register, handleSubmit, setValue, formState: { errors } } = useForm();
-
-  const quickAccounts = [
-    {
-      role: 'Super Admin',
-      email: 'admin@festival.edu',
-      name: 'Dr. Rajesh Sharma',
-      badgeColor: 'bg-indigo-100 text-indigo-700',
-      icon: Shield,
-    },
-    {
-      role: 'Verified Faculty',
-      email: 'priya.nair@festival.edu',
-      name: 'Dr. Priya Nair (Dance)',
-      badgeColor: 'bg-emerald-100 text-emerald-700',
-      icon: GraduationCap,
-    },
-    {
-      role: 'Pending Faculty',
-      email: 'neha.gupta@festival.edu',
-      name: 'Dr. Neha Gupta (Unverified)',
-      badgeColor: 'bg-amber-100 text-amber-700',
-      icon: Clock,
-    },
-    {
-      role: 'Student Coordinator',
-      email: 'rohit.mehta@student.edu',
-      name: 'Rohit Mehta (Dance)',
-      badgeColor: 'bg-light-blue-100 text-primary-blue',
-      icon: User,
-    },
-  ];
-
-  const handleQuickFill = (email) => {
-    setValue('email', email);
-    setValue('password', 'password123');
-  };
+  const { register, handleSubmit, formState: { errors } } = useForm();
 
   const onSubmit = async (data) => {
     setLoading(true);
@@ -122,7 +82,7 @@ export default function LoginPage() {
               <input
                 type="email"
                 {...register('email', { required: 'Email address is required' })}
-                placeholder="name@college.edu"
+                placeholder="admin@festival.edu"
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-primary-blue/30 focus:border-primary-blue"
               />
             </div>
@@ -151,7 +111,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 rounded-xl bg-primary-blue hover:bg-primary-blue-hover text-white font-bold text-xs shadow-soft hover:shadow-soft-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full py-3 px-4 rounded-xl bg-primary-blue hover:bg-primary-blue-hover text-white font-bold text-xs shadow-soft hover:shadow-soft-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
             >
               {loading ? 'Authenticating...' : 'Sign In to Portal'}
               <ArrowRight className="w-4 h-4" />
@@ -164,37 +124,6 @@ export default function LoginPage() {
           <Link to="/coordinator-signup" className="text-primary-blue font-bold hover:underline">
             Register here
           </Link>
-        </div>
-      </div>
-
-      {/* Quick Test Demo Fill Helper Card */}
-      <div className="bg-light-blue-50/70 border border-light-blue-200/80 rounded-2xl p-4 text-xs space-y-2.5">
-        <div className="flex items-center gap-1.5 font-bold text-navy-blue">
-          <KeyRound className="w-4 h-4 text-primary-blue" />
-          <span>Quick Evaluation Logins (1-Click Fill):</span>
-        </div>
-        <p className="text-[11px] text-slate-500">
-          Click any preset to fill email and test password:
-        </p>
-        <div className="grid grid-cols-2 gap-2 pt-1">
-          {quickAccounts.map((acc) => (
-            <button
-              key={acc.email}
-              type="button"
-              onClick={() => handleQuickFill(acc.email)}
-              className="p-2 bg-white rounded-xl border border-light-blue-200 text-left hover:border-primary-blue transition-colors group"
-            >
-              <div className="flex items-center justify-between">
-                <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded ${acc.badgeColor}`}>
-                  {acc.role.split(' ')[0]}
-                </span>
-              </div>
-              <div className="font-bold text-navy-blue text-[11px] truncate mt-1 group-hover:text-primary-blue">
-                {acc.name}
-              </div>
-              <div className="text-[10px] text-slate-400 truncate">{acc.email}</div>
-            </button>
-          ))}
         </div>
       </div>
 
