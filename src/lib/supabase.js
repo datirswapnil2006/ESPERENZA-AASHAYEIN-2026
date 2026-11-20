@@ -8,7 +8,8 @@ export const isSupabaseConfigured = Boolean(
   supabaseAnonKey &&
   supabaseUrl.startsWith('https://') &&
   !supabaseUrl.includes('dummy-') &&
-  !supabaseAnonKey.includes('dummy_')
+  !supabaseAnonKey.includes('dummy_') &&
+  supabaseAnonKey.startsWith('eyJ')
 );
 
 // Create the Supabase client instance
