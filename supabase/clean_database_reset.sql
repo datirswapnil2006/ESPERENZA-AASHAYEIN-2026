@@ -3,7 +3,7 @@
 -- Run this in your Supabase SQL Editor to wipe all dummy data and reset tables
 -- =========================================================================
 
--- Enable pgcrypto for password hashing
+-- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
@@ -22,12 +22,12 @@ TRUNCATE TABLE public.events CASCADE;
 DELETE FROM public.profiles WHERE role != 'super_admin';
 DELETE FROM auth.users WHERE email != 'admin@festival.edu';
 
--- 4. Create or update the official Super Admin account in auth.users and public.profiles
+-- 4. Create or update the official Super Admin account in auth.users & auth.identities
 DO $$
 DECLARE
   v_admin_id UUID := '00000000-0000-0000-0000-000000000001';
 BEGIN
-  -- Check if admin exists in auth.users
+  -- Insert into auth.users with all non-null GoTrue token defaults
   IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'admin@festival.edu') THEN
     INSERT INTO auth.users (
       id,
@@ -41,7 +41,14 @@ BEGIN
       updated_at,
       role,
       aud,
-      confirmation_token
+      confirmation_token,
+      recovery_token,
+      email_change_token_new,
+      email_change,
+      reauthentication_token,
+      email_change_token_current,
+      phone_change,
+      phone_change_token
     ) VALUES (
       v_admin_id,
       '00000000-0000-0000-0000-000000000000',
@@ -54,6 +61,13 @@ BEGIN
       NOW(),
       'authenticated',
       'authenticated',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
       ''
     );
   ELSE
@@ -62,9 +76,39 @@ BEGIN
     UPDATE auth.users 
     SET encrypted_password = crypt('Admin@2026', gen_salt('bf')),
         email_confirmed_at = COALESCE(email_confirmed_at, NOW()),
-        raw_user_meta_data = '{"full_name":"Dr. Rajesh Sharma","role":"super_admin","department":"Central Festival Administration"}'::jsonb
+        raw_user_meta_data = '{"full_name":"Dr. Rajesh Sharma","role":"super_admin","department":"Central Festival Administration"}'::jsonb,
+        confirmation_token = COALESCE(confirmation_token, ''),
+        recovery_token = COALESCE(recovery_token, ''),
+        email_change_token_new = COALESCE(email_change_token_new, ''),
+        email_change = COALESCE(email_change, ''),
+        reauthentication_token = COALESCE(reauthentication_token, ''),
+        email_change_token_current = COALESCE(email_change_token_current, ''),
+        phone_change = COALESCE(phone_change, ''),
+        phone_change_token = COALESCE(phone_change_token, '')
     WHERE id = v_admin_id;
   END IF;
+
+  -- Ensure auth.identities has email provider entry for GoTrue token generator
+  INSERT INTO auth.identities (
+    id,
+    user_id,
+    identity_data,
+    provider,
+    provider_id,
+    last_sign_in_at,
+    created_at,
+    updated_at
+  ) VALUES (
+    v_admin_id,
+    v_admin_id,
+    json_build_object('sub', v_admin_id::text, 'email', 'admin@festival.edu')::jsonb,
+    'email',
+    'admin@festival.edu',
+    NOW(),
+    NOW(),
+    NOW()
+  )
+  ON CONFLICT (provider, provider_id) DO NOTHING;
 
   -- Ensure Super Admin profile exists in public.profiles with valid UUID
   INSERT INTO public.profiles (
@@ -96,7 +140,19 @@ BEGIN
 
 END $$;
 
--- 5. Ensure core festival shells exist for Esperenza & Aashayein
+-- 5. Fix any existing NULL token columns across all auth users
+UPDATE auth.users
+SET 
+  confirmation_token = COALESCE(confirmation_token, ''),
+  recovery_token = COALESCE(recovery_token, ''),
+  email_change_token_new = COALESCE(email_change_token_new, ''),
+  email_change = COALESCE(email_change, ''),
+  reauthentication_token = COALESCE(reauthentication_token, ''),
+  email_change_token_current = COALESCE(email_change_token_current, ''),
+  phone_change = COALESCE(phone_change, ''),
+  phone_change_token = COALESCE(phone_change_token, '');
+
+-- 6. Ensure core festival shells exist for Esperenza & Aashayein
 INSERT INTO public.festivals (
   id, name, edition, slug, type, tagline, description, is_active
 ) VALUES 
