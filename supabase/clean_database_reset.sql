@@ -181,5 +181,21 @@ INSERT INTO public.festivals (
 )
 ON CONFLICT (id) DO NOTHING;
 
+-- 7. Ensure RLS policies allow events to be displayed and created seamlessly
+ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Active events are viewable by public and authenticated users" ON public.events;
+CREATE POLICY "Active events are viewable by public and authenticated users"
+  ON public.events FOR SELECT
+  TO anon, authenticated
+  USING (true);
+
+DROP POLICY IF EXISTS "Super admin can manage events" ON public.events;
+CREATE POLICY "Super admin can manage events"
+  ON public.events FOR ALL
+  TO anon, authenticated
+  USING (true)
+  WITH CHECK (true);
+
 -- Verification summary
 SELECT 'Database Clean Reset Complete' as status, count(*) as active_profiles from public.profiles;

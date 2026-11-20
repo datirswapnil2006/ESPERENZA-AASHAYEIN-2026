@@ -27,24 +27,33 @@ export const eventService = {
   },
 
   async getAllEvents() {
+    let dbEvents = [];
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase
           .from('events')
           .select('*, festivals(name, slug, type)')
           .order('created_at', { ascending: false });
-        if (!error && data) {
-          return data.map(ev => ({
+        if (!error && Array.isArray(data)) {
+          dbEvents = data.map(ev => ({
             ...ev,
-            festival_slug: ev.festivals?.slug || '',
+            festival_slug: ev.festivals?.slug || ev.festival_slug || '',
             festival_name: ev.festivals?.name || ''
           }));
+        } else if (error) {
+          console.warn('Supabase getAllEvents query warning:', error.message);
         }
       } catch (err) {
         console.warn('Supabase getAllEvents error, using store:', err);
       }
     }
-    return appStore.events;
+
+    // Seamlessly merge database events with local reactive store
+    const mergedMap = new Map();
+    (appStore.events || []).forEach(e => { if (e && e.id) mergedMap.set(e.id, e); });
+    dbEvents.forEach(e => { if (e && e.id) mergedMap.set(e.id, e); });
+
+    return Array.from(mergedMap.values());
   },
 
   async getEventsByFestival(festivalIdOrSlug) {
@@ -103,8 +112,14 @@ export const eventService = {
         }
 
         if (!error && data) {
-          appStore.notify('events', { type: 'INSERT', new: data });
-          return data;
+          const augmented = {
+            ...data,
+            festival_slug: payload.festival_slug || '',
+            festival_name: payload.festival_name || ''
+          };
+          appStore.events.unshift(augmented);
+          appStore.notify('events', { type: 'INSERT', new: augmented });
+          return augmented;
         }
         if (error) {
           console.warn('Supabase createEvent error:', error.message);
