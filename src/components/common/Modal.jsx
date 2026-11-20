@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 export default function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-2xl' }) {
@@ -15,15 +16,15 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = 'ma
 
   if (!isOpen) return null;
 
-  return (
+  const modalNode = (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 overflow-hidden">
-      {/* Backdrop */}
+      {/* Full-Screen Backdrop */}
       <div 
-        className="fixed inset-0 bg-navy-blue/75 backdrop-blur-sm transition-opacity animate-fade-in" 
+        className="fixed inset-0 bg-navy-blue/75 backdrop-blur-sm transition-opacity" 
         onClick={onClose}
       />
 
-      {/* Modal Dialog Window */}
+      {/* Modal Dialog Window Centered */}
       <div 
         className={`relative z-10 flex flex-col max-h-[92vh] sm:max-h-[88vh] bg-white rounded-3xl shadow-2xl transition-all w-full ${maxWidth} border border-light-blue-200 overflow-hidden my-auto`}
         onClick={(e) => e.stopPropagation()}
@@ -49,4 +50,6 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = 'ma
       </div>
     </div>
   );
+
+  return createPortal(modalNode, document.body);
 }
