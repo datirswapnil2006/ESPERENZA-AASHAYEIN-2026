@@ -61,10 +61,20 @@ export default function DashboardLayout() {
             {isAdmin ? 'SUPER ADMIN CONSOLE' : isFaculty ? 'FACULTY PORTAL' : 'STUDENT PORTAL'}
           </span>
         </div>
-        <Link to="/" className="text-xs bg-primary-blue px-2.5 py-1 rounded-lg font-medium flex items-center gap-1">
-          <Home className="w-3.5 h-3.5" />
-          <span>Home</span>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link to="/" className="text-xs bg-navy-blue-light hover:bg-primary-blue px-2.5 py-1 rounded-lg font-medium flex items-center gap-1">
+            <Home className="w-3.5 h-3.5" />
+            <span>Home</span>
+          </Link>
+          <button
+            onClick={handleLogout}
+            className="text-xs bg-rose-600 hover:bg-rose-700 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 text-white shadow-xs"
+            title="Sign Out"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign Out</span>
+          </button>
+        </div>
       </div>
 
       {/* Desktop & Mobile Sidebar */}
@@ -116,6 +126,13 @@ export default function DashboardLayout() {
               )}
             </div>
           </div>
+          <button
+            onClick={handleLogout}
+            className="p-1.5 rounded-xl text-slate-400 hover:text-rose-300 hover:bg-rose-950/40 transition-colors shrink-0"
+            title="Sign Out of Portal"
+          >
+            <LogOut className="w-4 h-4 text-rose-400" />
+          </button>
         </div>
 
         {/* Navigation Items (Folder Hierarchical Structure) */}
@@ -421,6 +438,16 @@ export default function DashboardLayout() {
             <div className="w-9 h-9 rounded-xl bg-light-blue-100 text-primary-blue font-bold flex items-center justify-center text-sm border border-light-blue-200">
               {profile?.full_name?.charAt(0) || 'A'}
             </div>
+
+            {/* Quick Sign Out Button in Top Header */}
+            <button
+              onClick={handleLogout}
+              className="ml-1 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all shadow-xs cursor-pointer"
+              title="Sign Out of Portal"
+            >
+              <LogOut className="w-3.5 h-3.5 text-rose-600" />
+              <span>Sign Out</span>
+            </button>
           </div>
         </header>
 

@@ -16,34 +16,35 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = 'ma
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 overflow-hidden">
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 bg-navy-blue/60 backdrop-blur-sm transition-opacity" 
+        className="fixed inset-0 bg-navy-blue/75 backdrop-blur-sm transition-opacity animate-fade-in" 
         onClick={onClose}
       />
 
-      {/* Modal Dialog */}
-      <div className="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
-        <div 
-          className={`relative transform overflow-hidden rounded-3xl bg-white text-left shadow-soft-lg transition-all w-full ${maxWidth} my-8 border border-light-blue-200`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-cream-50">
-            <h3 className="text-lg font-bold text-navy-blue">{title}</h3>
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-xl text-slate-400 hover:text-navy-blue hover:bg-slate-100 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+      {/* Modal Dialog Window */}
+      <div 
+        className={`relative z-10 flex flex-col max-h-[92vh] sm:max-h-[88vh] bg-white rounded-3xl shadow-2xl transition-all w-full ${maxWidth} border border-light-blue-200 overflow-hidden my-auto`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-cream-50/90 shrink-0">
+          <h3 className="text-base sm:text-lg font-black text-navy-blue flex items-center gap-2">
+            {title}
+          </h3>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-xl text-slate-400 hover:text-navy-blue hover:bg-slate-100 transition-colors"
+            title="Close dialog"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
-          {/* Content */}
-          <div className="px-6 py-6 max-h-[75vh] overflow-y-auto">
-            {children}
-          </div>
+        {/* Scrollable Content Body */}
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6 overscroll-contain">
+          {children}
         </div>
       </div>
     </div>
