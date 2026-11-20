@@ -69,8 +69,8 @@ export default function FacultyFormBuilder() {
       setFormDesc(fetched.description || '');
       setDeadline(fetched.deadline ? fetched.deadline.slice(0, 16) : '');
       setAllowTeams(Boolean(fetched.allow_teams));
-      setMinTeam(fetched.min_team_size || 1);
-      setMaxTeam(fetched.max_team_size || 4);
+      setMinTeam(fetched.min_team_size ?? 0);
+      setMaxTeam(fetched.max_team_size ?? 0);
     } else {
       // Create empty draft form skeleton
       const currentEvt = events.find(e => e.id === evtId);
@@ -112,8 +112,8 @@ export default function FacultyFormBuilder() {
         description: formDesc,
         deadline: deadline ? new Date(deadline).toISOString() : null,
         allow_teams: allowTeams,
-        min_team_size: Number(minTeam) || 1,
-        max_team_size: Number(maxTeam) || 4,
+        min_team_size: isNaN(parseInt(minTeam, 10)) ? 0 : parseInt(minTeam, 10),
+        max_team_size: isNaN(parseInt(maxTeam, 10)) ? 0 : parseInt(maxTeam, 10),
         status: targetStatus || form?.status || 'draft',
         created_by: profile?.id
       };
@@ -276,7 +276,7 @@ export default function FacultyFormBuilder() {
                   <span className="font-semibold text-slate-500">Min:</span>
                   <input
                     type="number"
-                    min="1"
+                    min="0"
                     value={minTeam}
                     onChange={(e) => setMinTeam(e.target.value)}
                     className="w-16 px-2 py-1.5 rounded-lg border border-slate-200 text-center font-bold"
@@ -286,7 +286,7 @@ export default function FacultyFormBuilder() {
                   <span className="font-semibold text-slate-500">Max:</span>
                   <input
                     type="number"
-                    min="1"
+                    min="0"
                     value={maxTeam}
                     onChange={(e) => setMaxTeam(e.target.value)}
                     className="w-16 px-2 py-1.5 rounded-lg border border-slate-200 text-center font-bold"

@@ -39,8 +39,8 @@ export default function AdminEventModal({ isOpen, onClose, eventToEdit, festival
       setValue('event_date', eventToEdit.event_date ? eventToEdit.event_date.slice(0, 16) : '');
       setValue('registration_deadline', eventToEdit.registration_deadline ? eventToEdit.registration_deadline.slice(0, 16) : '');
       setValue('status', eventToEdit.status || 'upcoming');
-      setValue('min_team_size', eventToEdit.min_team_size || 1);
-      setValue('max_team_size', eventToEdit.max_team_size || 1);
+      setValue('min_team_size', eventToEdit.min_team_size ?? 0);
+      setValue('max_team_size', eventToEdit.max_team_size ?? 0);
       setValue('rules', eventToEdit.rules || '');
       setPreviewImage(eventToEdit.image_url || '');
       setFileName('');
@@ -55,8 +55,8 @@ export default function AdminEventModal({ isOpen, onClose, eventToEdit, festival
         event_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 16),
         registration_deadline: new Date(Date.now() + 25 * 86400000).toISOString().slice(0, 16),
         status: 'upcoming',
-        min_team_size: 1,
-        max_team_size: 1,
+        min_team_size: 0,
+        max_team_size: 0,
         rules: '',
       });
       setPreviewImage('');
@@ -112,8 +112,8 @@ export default function AdminEventModal({ isOpen, onClose, eventToEdit, festival
         ...data,
         image_url: previewImage || '',
         festival_slug: selectedFest?.slug || '',
-        min_team_size: Number(data.min_team_size) || 1,
-        max_team_size: Number(data.max_team_size) || 1,
+        min_team_size: isNaN(parseInt(data.min_team_size, 10)) ? 0 : parseInt(data.min_team_size, 10),
+        max_team_size: isNaN(parseInt(data.max_team_size, 10)) ? 0 : parseInt(data.max_team_size, 10),
       };
 
       let result;
@@ -273,26 +273,30 @@ export default function AdminEventModal({ isOpen, onClose, eventToEdit, festival
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block font-bold text-navy-blue mb-1">Min Team Size</label>
+                <label className="block font-bold text-navy-blue mb-1">
+                  Min Team Size <span className="text-[10px] text-slate-400 font-normal">(0 for solo)</span>
+                </label>
                 <div className="relative">
                   <Users className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="number"
-                    min="1"
-                    max="50"
+                    min="0"
+                    max="100"
                     {...register('min_team_size')}
                     className="w-full pl-7 pr-2 py-2 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:ring-2 focus:ring-primary-blue focus:outline-none"
                   />
                 </div>
               </div>
               <div>
-                <label className="block font-bold text-navy-blue mb-1">Max Team Size</label>
+                <label className="block font-bold text-navy-blue mb-1">
+                  Max Team Size <span className="text-[10px] text-slate-400 font-normal">(0 for solo)</span>
+                </label>
                 <div className="relative">
                   <Users className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="number"
-                    min="1"
-                    max="50"
+                    min="0"
+                    max="100"
                     {...register('max_team_size')}
                     className="w-full pl-7 pr-2 py-2 rounded-xl border border-slate-200 bg-white text-xs font-medium focus:ring-2 focus:ring-primary-blue focus:outline-none"
                   />
