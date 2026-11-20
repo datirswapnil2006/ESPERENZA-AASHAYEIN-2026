@@ -18,6 +18,7 @@ import CoordinatorSignupPage from '../pages/auth/CoordinatorSignupPage';
 // Super Admin Pages
 import AdminDashboard from '../pages/admin/AdminDashboard';
 import AdminFestivalEvents from '../pages/admin/AdminFestivalEvents';
+import AdminEventFolderView from '../pages/admin/AdminEventFolderView';
 import AdminFacultyList from '../pages/admin/AdminFacultyList';
 import AdminStudentCoordinators from '../pages/admin/AdminStudentCoordinators';
 import AdminAssignments from '../pages/admin/AdminAssignments';
@@ -67,7 +68,9 @@ export default function AppRoutes() {
       >
         <Route index element={<AdminDashboard />} />
         <Route path="festival/:slug" element={<AdminFestivalEvents />} />
+        <Route path="festival/:slug/event/:eventId" element={<AdminEventFolderView />} />
         <Route path="events" element={<AdminFestivalEvents />} />
+        <Route path="events/:eventId" element={<AdminEventFolderView />} />
         <Route path="faculty" element={<AdminFacultyList />} />
         <Route path="students" element={<AdminStudentCoordinators />} />
         <Route path="assignments" element={<AdminAssignments />} />
