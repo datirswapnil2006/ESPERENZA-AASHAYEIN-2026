@@ -56,7 +56,7 @@ BEGIN
       crypt('Admin@2026', gen_salt('bf')),
       NOW(),
       '{"provider":"email","providers":["email"]}'::jsonb,
-      '{"full_name":"Dr. Rajesh Sharma","role":"super_admin","department":"Central Festival Administration"}'::jsonb,
+      '{"full_name":"Dr. Nikko Khalsa","role":"super_admin","department":"Central Festival Administration"}'::jsonb,
       NOW(),
       NOW(),
       'authenticated',
@@ -76,7 +76,7 @@ BEGIN
     UPDATE auth.users 
     SET encrypted_password = crypt('Admin@2026', gen_salt('bf')),
         email_confirmed_at = COALESCE(email_confirmed_at, NOW()),
-        raw_user_meta_data = '{"full_name":"Dr. Rajesh Sharma","role":"super_admin","department":"Central Festival Administration"}'::jsonb,
+        raw_user_meta_data = '{"full_name":"Dr. Nikko Khalsa","role":"super_admin","department":"Central Festival Administration"}'::jsonb,
         confirmation_token = COALESCE(confirmation_token, ''),
         recovery_token = COALESCE(recovery_token, ''),
         email_change_token_new = COALESCE(email_change_token_new, ''),
@@ -124,7 +124,7 @@ BEGIN
   ) VALUES (
     v_admin_id,
     'admin@festival.edu',
-    'Dr. Rajesh Sharma',
+    'Dr. Nikko Khalsa',
     'super_admin',
     'Central Festival Administration',
     '+91 98765 00001',
@@ -136,7 +136,7 @@ BEGIN
     role = 'super_admin',
     is_verified = true,
     email = 'admin@festival.edu',
-    full_name = 'Dr. Rajesh Sharma';
+    full_name = 'Dr. Nikko Khalsa';
 
 END $$;
 

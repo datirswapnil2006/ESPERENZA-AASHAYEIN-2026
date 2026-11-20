@@ -36,7 +36,7 @@ export const initialProfiles = [
   {
     id: '00000000-0000-0000-0000-000000000001',
     email: 'admin@festival.edu',
-    full_name: 'Dr. Rajesh Sharma',
+    full_name: 'Dr. Nikko Khalsa',
     role: 'super_admin',
     department: 'Central Festival Administration',
     mobile: '+91 98765 00001',

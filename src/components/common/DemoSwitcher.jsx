@@ -10,7 +10,7 @@ export default function DemoSwitcher() {
     {
       role: 'Super Admin',
       email: 'admin@festival.edu',
-      name: 'Dr. Rajesh Sharma',
+      name: 'Dr. Nikko Khalsa',
       desc: 'Full administrative authority across festivals & reports',
       icon: Shield,
       color: 'bg-indigo-600',
