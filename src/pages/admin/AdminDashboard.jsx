@@ -85,8 +85,14 @@ export default function AdminDashboard() {
 
   const pendingFaculty = faculty.filter(f => !f.is_verified);
   const activeEvents = events.filter(e => e.status !== 'archived');
-  const esperanzaEvents = events.filter(e => e.festival_slug === 'esperanza');
-  const aashayeinEvents = events.filter(e => e.festival_slug === 'aashayein');
+  const esperanzaEvents = events.filter(e => 
+    e.festival_slug?.toLowerCase().startsWith('esper') || 
+    e.festival_id === '11111111-1111-1111-1111-111111111111'
+  );
+  const aashayeinEvents = events.filter(e => 
+    e.festival_slug?.toLowerCase().startsWith('aash') || 
+    e.festival_id === '22222222-2222-2222-2222-222222222222'
+  );
 
   return (
     <div className="space-y-8 animate-fade-in">

@@ -55,10 +55,25 @@ export default function AdminFestivalEvents() {
         participantService.getAllParticipants()
       ]);
       setFestivals(allFestivals || []);
-      const current = allFestivals?.find(f => f.slug === slug);
+      const current = slug 
+        ? allFestivals?.find(f => 
+            f.slug?.toLowerCase() === slug.toLowerCase() || 
+            (slug.toLowerCase().startsWith('esper') && f.slug?.toLowerCase().startsWith('esper')) ||
+            f.id === slug
+          )
+        : null;
       setFestival(current);
 
-      const festivalEvents = allEvents?.filter(e => e.festival_slug === slug || e.festival_id === current?.id);
+      const festivalEvents = slug
+        ? allEvents?.filter(e => {
+            if (current && e.festival_id === current.id) return true;
+            if (e.festival_slug?.toLowerCase() === slug.toLowerCase()) return true;
+            if (slug.toLowerCase().startsWith('esper') && (e.festival_slug?.toLowerCase().startsWith('esper') || e.festival_id === '11111111-1111-1111-1111-111111111111')) return true;
+            if (slug.toLowerCase().startsWith('aash') && (e.festival_slug?.toLowerCase().startsWith('aash') || e.festival_id === '22222222-2222-2222-2222-222222222222')) return true;
+            return false;
+          })
+        : (allEvents || []);
+
       setEvents(festivalEvents || []);
       setAssignments(allAssigns || []);
       setParticipants(allParts || []);
@@ -308,6 +323,7 @@ export default function AdminFestivalEvents() {
           onClose={() => setShowModal(false)}
           eventToEdit={selectedEventToEdit}
           festivals={festivals}
+          defaultFestivalId={festival?.id || (isTech ? '11111111-1111-1111-1111-111111111111' : '22222222-2222-2222-2222-222222222222')}
           onSave={() => loadData()}
         />
       )}

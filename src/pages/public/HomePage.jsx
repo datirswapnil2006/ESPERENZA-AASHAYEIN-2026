@@ -45,8 +45,14 @@ export default function HomePage() {
     return () => unsub();
   }, []);
 
-  const technicalEvents = events.filter(e => e.festival_slug === 'esperanza');
-  const culturalEvents = events.filter(e => e.festival_slug === 'aashayein');
+  const technicalEvents = events.filter(e => 
+    e.festival_slug?.toLowerCase().startsWith('esper') || 
+    e.festival_id === '11111111-1111-1111-1111-111111111111'
+  );
+  const culturalEvents = events.filter(e => 
+    e.festival_slug?.toLowerCase().startsWith('aash') || 
+    e.festival_id === '22222222-2222-2222-2222-222222222222'
+  );
 
   const filteredEvents = activeTab === 'all' 
     ? events 

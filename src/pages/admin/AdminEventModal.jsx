@@ -18,7 +18,7 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 
-export default function AdminEventModal({ isOpen, onClose, eventToEdit, festivals, onSave }) {
+export default function AdminEventModal({ isOpen, onClose, eventToEdit, festivals, onSave, defaultFestivalId }) {
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
   const [previewImage, setPreviewImage] = useState('');
@@ -47,7 +47,7 @@ export default function AdminEventModal({ isOpen, onClose, eventToEdit, festival
     } else {
       reset({
         name: '',
-        festival_id: festivals[0]?.id || '',
+        festival_id: defaultFestivalId || festivals[0]?.id || '',
         category: 'Performing Arts',
         description: '',
         venue: 'Main Campus Quadrangle & Stage',
@@ -62,7 +62,7 @@ export default function AdminEventModal({ isOpen, onClose, eventToEdit, festival
       setPreviewImage('');
       setFileName('');
     }
-  }, [eventToEdit, isOpen, festivals, reset, setValue]);
+  }, [eventToEdit, isOpen, festivals, defaultFestivalId, reset, setValue]);
 
   // Handle local image file upload & conversion to Data URL
   const handleImageFileChange = (e) => {

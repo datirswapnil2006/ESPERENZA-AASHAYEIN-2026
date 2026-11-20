@@ -15,15 +15,16 @@ export const eventService = {
   },
 
   async getFestivalBySlug(slug) {
+    const norm = (slug === 'esperenza' || slug === 'esperanza') ? 'esperanza' : slug;
     if (isSupabaseConfigured) {
       try {
-        const { data, error } = await supabase.from('festivals').select('*').eq('slug', slug).single();
+        const { data, error } = await supabase.from('festivals').select('*').or(`slug.eq.${norm},slug.eq.${slug}`).maybeSingle();
         if (!error && data) return data;
       } catch (err) {
         console.warn('Supabase getFestivalBySlug error, using store:', err);
       }
     }
-    return appStore.festivals.find(f => f.slug === slug) || null;
+    return appStore.festivals.find(f => f.slug === norm || f.slug === slug) || null;
   },
 
   async getAllEvents() {
@@ -37,8 +38,8 @@ export const eventService = {
         if (!error && Array.isArray(data)) {
           dbEvents = data.map(ev => ({
             ...ev,
-            festival_slug: ev.festivals?.slug || ev.festival_slug || '',
-            festival_name: ev.festivals?.name || ''
+            festival_slug: ev.festivals?.slug || ev.festival_slug || (ev.festival_id === '11111111-1111-1111-1111-111111111111' ? 'esperanza' : ev.festival_id === '22222222-2222-2222-2222-222222222222' ? 'aashayein' : ''),
+            festival_name: ev.festivals?.name || (ev.festival_id === '11111111-1111-1111-1111-111111111111' ? 'Esperenza' : ev.festival_id === '22222222-2222-2222-2222-222222222222' ? 'Aashayein' : '')
           }));
         } else if (error) {
           console.warn('Supabase getAllEvents query warning:', error.message);
@@ -58,7 +59,15 @@ export const eventService = {
 
   async getEventsByFestival(festivalIdOrSlug) {
     const all = await this.getAllEvents();
-    return all.filter(e => e.festival_id === festivalIdOrSlug || e.festival_slug === festivalIdOrSlug);
+    const query = (festivalIdOrSlug || '').toLowerCase();
+    return all.filter(e => {
+      const eFestId = (e.festival_id || '').toLowerCase();
+      const eFestSlug = (e.festival_slug || '').toLowerCase();
+      if (eFestId === query || eFestSlug === query) return true;
+      if (query.startsWith('esper') && (eFestSlug.startsWith('esper') || eFestId === '11111111-1111-1111-1111-111111111111')) return true;
+      if (query.startsWith('aash') && (eFestSlug.startsWith('aash') || eFestId === '22222222-2222-2222-2222-222222222222')) return true;
+      return false;
+    });
   },
 
   async getEventBySlug(festivalSlug, eventSlug) {
