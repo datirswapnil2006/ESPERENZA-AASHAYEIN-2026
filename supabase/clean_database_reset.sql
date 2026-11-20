@@ -18,6 +18,9 @@ TRUNCATE TABLE public.audit_logs CASCADE;
 -- 2. Remove all dummy events (leaves a clean slate to add new events)
 TRUNCATE TABLE public.events CASCADE;
 
+-- Ensure festival_slug column exists in events table for compatibility
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS festival_slug TEXT;
+
 -- 3. Delete non-admin profiles and non-admin auth accounts
 DELETE FROM public.profiles WHERE role != 'super_admin';
 DELETE FROM auth.users WHERE email != 'admin@festival.edu';

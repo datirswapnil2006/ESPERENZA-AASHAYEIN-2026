@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import Modal from '../../components/common/Modal';
 import { eventService } from '../../services/eventService';
 import { 
   Calendar, 
-  Image as ImageIcon, 
   MapPin, 
   Sparkles, 
   AlertCircle, 
@@ -13,15 +12,20 @@ import {
   Layers, 
   FileText,
   CheckCircle2,
-  Info
+  UploadCloud,
+  Trash2,
+  RefreshCw,
+  Image as ImageIcon
 } from 'lucide-react';
 
 export default function AdminEventModal({ isOpen, onClose, eventToEdit, festivals, onSave }) {
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
+  const [previewImage, setPreviewImage] = useState('');
+  const [fileName, setFileName] = useState('');
+  const fileInputRef = useRef(null);
 
   const { register, handleSubmit, reset, setValue, watch } = useForm();
-  const currentImageUrl = watch('image_url');
   const currentFestivalId = watch('festival_id');
 
   useEffect(() => {
@@ -31,13 +35,15 @@ export default function AdminEventModal({ isOpen, onClose, eventToEdit, festival
       setValue('category', eventToEdit.category);
       setValue('description', eventToEdit.description);
       setValue('venue', eventToEdit.venue);
-      setValue('image_url', eventToEdit.image_url);
+      setValue('image_url', eventToEdit.image_url || '');
       setValue('event_date', eventToEdit.event_date ? eventToEdit.event_date.slice(0, 16) : '');
       setValue('registration_deadline', eventToEdit.registration_deadline ? eventToEdit.registration_deadline.slice(0, 16) : '');
       setValue('status', eventToEdit.status || 'upcoming');
       setValue('min_team_size', eventToEdit.min_team_size || 1);
       setValue('max_team_size', eventToEdit.max_team_size || 1);
       setValue('rules', eventToEdit.rules || '');
+      setPreviewImage(eventToEdit.image_url || '');
+      setFileName('');
     } else {
       reset({
         name: '',
@@ -45,7 +51,7 @@ export default function AdminEventModal({ isOpen, onClose, eventToEdit, festival
         category: 'Performing Arts',
         description: '',
         venue: 'Main Campus Quadrangle & Stage',
-        image_url: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=800&q=80',
+        image_url: '',
         event_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 16),
         registration_deadline: new Date(Date.now() + 25 * 86400000).toISOString().slice(0, 16),
         status: 'upcoming',
@@ -53,8 +59,49 @@ export default function AdminEventModal({ isOpen, onClose, eventToEdit, festival
         max_team_size: 1,
         rules: '',
       });
+      setPreviewImage('');
+      setFileName('');
     }
   }, [eventToEdit, isOpen, festivals, reset, setValue]);
+
+  // Handle local image file upload & conversion to Data URL
+  const handleImageFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setErrorMsg('Please select a valid image file (PNG, JPG, JPEG, WEBP).');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setErrorMsg('Selected image exceeds the 5MB size limit.');
+      return;
+    }
+
+    setErrorMsg(null);
+    setFileName(file.name);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result;
+      setPreviewImage(result);
+      setValue('image_url', result);
+    };
+    reader.onerror = () => {
+      setErrorMsg('Failed to process image file.');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveImage = () => {
+    setPreviewImage('');
+    setFileName('');
+    setValue('image_url', '');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   const onSubmit = async (data) => {
     setSaving(true);
@@ -63,6 +110,7 @@ export default function AdminEventModal({ isOpen, onClose, eventToEdit, festival
       const selectedFest = festivals.find(f => f.id === data.festival_id);
       const payload = {
         ...data,
+        image_url: previewImage || '',
         festival_slug: selectedFest?.slug || '',
         min_team_size: Number(data.min_team_size) || 1,
         max_team_size: Number(data.max_team_size) || 1,
@@ -100,7 +148,7 @@ export default function AdminEventModal({ isOpen, onClose, eventToEdit, festival
               {eventToEdit ? `Edit Event: ${eventToEdit.name}` : 'Create New Festival Event'}
             </div>
             <div className="text-[11px] text-slate-500 font-medium">
-              Add competition details, venues, schedules and participation capacity
+              Upload poster, set venues, schedules and competition capacity
             </div>
           </div>
         </div>
@@ -254,37 +302,87 @@ export default function AdminEventModal({ isOpen, onClose, eventToEdit, festival
           </div>
         </div>
 
-        {/* SECTION 3: MEDIA, RULES & DESCRIPTION */}
+        {/* SECTION 3: IMAGE UPLOAD, RULES & DESCRIPTION */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-3.5">
           <h4 className="font-extrabold text-navy-blue flex items-center gap-1.5 text-xs">
             <FileText className="w-4 h-4 text-purple-600" />
-            <span>Description, Poster & Rules</span>
+            <span>Event Poster, Description & Rules</span>
           </h4>
 
-          {/* Cover Image URL with Live Thumbnail Preview */}
+          {/* DEDICATED IMAGE FILE UPLOAD (URL LINK REMOVED) */}
           <div>
-            <label className="block font-bold text-navy-blue mb-1">Cover Image URL</label>
-            <div className="flex gap-3 items-center">
-              <div className="relative flex-1">
-                <ImageIcon className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="url"
-                  {...register('image_url')}
-                  placeholder="https://images.unsplash.com/photo-..."
-                  className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-primary-blue focus:outline-none"
-                />
-              </div>
-              {currentImageUrl && (
-                <div className="w-12 h-10 rounded-xl overflow-hidden border border-slate-200 shrink-0 bg-slate-100">
-                  <img 
-                    src={currentImageUrl} 
-                    alt="Preview" 
-                    className="w-full h-full object-cover" 
-                    onError={(e) => { e.target.style.display = 'none'; }}
+            <label className="block font-bold text-navy-blue mb-1.5 flex items-center justify-between">
+              <span>Event Poster / Cover Image</span>
+              {previewImage && (
+                <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" /> Image Uploaded
+                </span>
+              )}
+            </label>
+
+            {/* Hidden native file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png, image/jpeg, image/jpg, image/webp"
+              onChange={handleImageFileChange}
+              className="hidden"
+            />
+
+            {previewImage ? (
+              /* Uploaded Image Preview Card */
+              <div className="relative rounded-2xl border border-light-blue-200 overflow-hidden bg-slate-50 p-3 flex flex-col sm:flex-row items-center gap-4">
+                <div className="w-full sm:w-36 h-28 rounded-xl overflow-hidden bg-slate-200 shrink-0 border border-slate-200">
+                  <img
+                    src={previewImage}
+                    alt="Event Poster Preview"
+                    className="w-full h-full object-cover"
                   />
                 </div>
-              )}
-            </div>
+                <div className="flex-1 min-w-0 space-y-1 w-full text-left">
+                  <p className="font-bold text-navy-blue text-xs truncate">
+                    {fileName || 'Event Poster'}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    Poster ready to publish with event card and registration forms.
+                  </p>
+                  <div className="flex items-center gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-1.5 rounded-lg bg-light-blue-100 hover:bg-light-blue-200 text-primary-blue text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>Change Poster</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRemoveImage}
+                      className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Remove</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Drag & Drop / Click Upload Box */
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed border-light-blue-300 hover:border-primary-blue bg-light-blue-50/30 hover:bg-light-blue-50/70 transition-all rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer group text-center"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-white text-primary-blue flex items-center justify-center shadow-soft mb-2 group-hover:scale-105 transition-transform">
+                  <UploadCloud className="w-6 h-6" />
+                </div>
+                <p className="font-bold text-navy-blue text-xs">
+                  Click to select an event image from your computer
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Supports PNG, JPG, JPEG, WEBP (Max 5MB)
+                </p>
+              </div>
+            )}
           </div>
 
           <div>
@@ -308,7 +406,7 @@ export default function AdminEventModal({ isOpen, onClose, eventToEdit, festival
           </div>
         </div>
 
-        {/* MODAL FOOTER BUTTONS (Always in view) */}
+        {/* MODAL FOOTER BUTTONS (Always visible) */}
         <div className="pt-3 border-t border-slate-200 flex items-center justify-between gap-3">
           <p className="text-[11px] text-slate-500 font-medium">
             * Fields required for public registrations

@@ -76,13 +76,18 @@ export const eventService = {
 
     if (isSupabaseConfigured) {
       try {
-        const { data, error } = await supabase.from('events').insert([payload]).select().single();
+        // Strip virtual or join fields before sending to Supabase events table
+        const { festival_slug, festival_name, festivals, ...dbPayload } = payload;
+        const { data, error } = await supabase.from('events').insert([dbPayload]).select().single();
         if (!error && data) {
           appStore.notify('events', { type: 'INSERT', new: data });
           return data;
         }
+        if (error) {
+          console.warn('Supabase createEvent error:', error.message);
+        }
       } catch (err) {
-        console.warn('Supabase createEvent error, persisting to store:', err);
+        console.warn('Supabase createEvent exception, persisting to store:', err);
       }
     }
     return appStore.addEvent(payload);
@@ -91,10 +96,15 @@ export const eventService = {
   async updateEvent(eventId, updates) {
     if (isSupabaseConfigured) {
       try {
-        const { data, error } = await supabase.from('events').update(updates).eq('id', eventId).select().single();
+        // Strip virtual or join fields before sending to Supabase events table
+        const { festival_slug, festival_name, festivals, ...dbUpdates } = updates;
+        const { data, error } = await supabase.from('events').update(dbUpdates).eq('id', eventId).select().single();
         if (!error && data) {
           appStore.notify('events', { type: 'UPDATE', new: data });
           return data;
+        }
+        if (error) {
+          console.warn('Supabase updateEvent error:', error.message);
         }
       } catch (err) {
         console.warn('Supabase updateEvent error, using store:', err);
