@@ -28,8 +28,24 @@ export const initialFestivals = [
   }
 ];
 
-// All dummy events removed - clean slate for Super Admin
-export const initialEvents = [];
+export const initialEvents = [
+  {
+    id: '33333333-3333-3333-3333-333333333333',
+    festival_id: '11111111-1111-1111-1111-111111111111',
+    festival_slug: 'esperanza',
+    name: 'Young Scientist',
+    slug: 'young-scientist',
+    category: 'Science & Innovation',
+    description: 'Premier scientific model & project exhibition for school students. Open exclusively for 5th to 10th Standard. Teams of 1, 2, or 3 participants.',
+    venue: 'Science Exhibition Complex / Lab Hall',
+    event_date: '2026-12-11T10:00:00Z',
+    registration_deadline: '2026-12-05T23:59:59Z',
+    status: 'upcoming',
+    min_team_size: 1,
+    max_team_size: 3,
+    rules: '1. Eligibility: Exclusively open for school students currently studying from 5th Standard to 10th Standard.\n2. Team Participation: Students may participate as Solo (1 member), Duo (2 members), or Trio (3 members).\n3. Models: Working scientific models, prototypes, or experimental research posters are permitted.\n4. Judging Criteria: Scientific thought, innovation, understanding of concepts, and presentation clarity.'
+  }
+];
 
 // Super Administrator single official account
 export const initialProfiles = [

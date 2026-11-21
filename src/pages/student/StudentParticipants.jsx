@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { participantService } from '../../services/participantService';
 import { coordinatorService } from '../../services/coordinatorService';
 import { eventService } from '../../services/eventService';
+import { COLLEGE_DEPARTMENTS, matchDepartment } from '../../utils/departments';
 import Modal from '../../components/common/Modal';
 import { ClipboardList, Search, Users, Eye, CheckCircle2, Phone, Mail } from 'lucide-react';
 import { LoadingSkeleton } from '../../components/common/LoadingSkeleton';
@@ -15,6 +16,7 @@ export default function StudentParticipants() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [inspectTarget, setInspectTarget] = useState(null);
+  const [deptFilter, setDeptFilter] = useState(profile?.department || 'all');
 
   useEffect(() => {
     async function loadData() {
@@ -26,17 +28,28 @@ export default function StudentParticipants() {
           participantService.getAllParticipants()
         ]);
 
-        const myEventIds = (allAssigns || [])
+        let myEventIds = (allAssigns || [])
           .filter(a => a.user_id === profile?.id && a.status === 'active')
           .map(a => a.event_id);
 
-        const myEvents = (allEvents || []).filter(e => myEventIds.includes(e.id));
+        if (myEventIds.length === 0 && allEvents && allEvents.length > 0 && profile?.id) {
+          const targetEvent = (profile?.event_id && allEvents.find(e => e.id === profile.event_id)) || allEvents[0];
+          if (targetEvent) {
+            myEventIds = [targetEvent.id];
+          }
+        }
+
+        let myEvents = (allEvents || []).filter(e => myEventIds.includes(e.id));
+        if (myEvents.length === 0 && allEvents && allEvents.length > 0) {
+          myEvents = allEvents;
+        }
         setEvents(myEvents);
         if (myEvents.length > 0 && !selectedEventId) {
           setSelectedEventId(myEvents[0].id);
         }
 
-        const myParts = (allParts || []).filter(p => myEventIds.includes(p.event_id));
+        const activeEvtIds = myEvents.map(e => e.id);
+        const myParts = (allParts || []).filter(p => activeEvtIds.includes(p.event_id));
         setParticipants(myParts);
       } catch (err) {
         console.error('Error fetching student participants:', err);
@@ -47,12 +60,17 @@ export default function StudentParticipants() {
     loadData();
   }, [profile]);
 
+  const currentEvent = events.find(e => e.id === selectedEventId) || events[0];
+  const isCarnival = currentEvent?.slug === 'carnival' || currentEvent?.name?.toLowerCase().includes('carnival');
+
   const filtered = participants.filter((p) => {
     const matchesEvent = !selectedEventId || p.event_id === selectedEventId;
-    const matchesSearch = p.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = p.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           p.erp_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          p.department?.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesEvent && matchesSearch;
+                          p.department?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          p.team_name?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesDept = !isCarnival || deptFilter === 'all' || matchDepartment(p.department, deptFilter);
+    return matchesEvent && matchesSearch && matchesDept;
   });
 
   if (loading) return <LoadingSkeleton lines={6} />;
@@ -76,6 +94,68 @@ export default function StudentParticipants() {
           {filtered.length} Participants Enrolled
         </span>
       </div>
+
+      {/* Carnival Department Partitioning for Student Coordinators */}
+      {isCarnival && (
+        <div className="bg-gradient-to-r from-light-blue-50 to-white p-4 rounded-2xl border border-light-blue-200 shadow-xs space-y-2.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-primary-blue bg-light-blue-100 px-2.5 py-0.5 rounded-full">
+                Carnival Department Coordinator Desk
+              </span>
+              <h4 className="text-xs font-bold text-navy-blue mt-1">
+                Showing entries for: <span className="text-primary-blue">{deptFilter === 'all' ? 'All Departments' : deptFilter}</span>
+              </h4>
+            </div>
+            {profile?.department && (
+              <span className="text-xs font-semibold text-slate-500">
+                Your Department: <strong className="text-navy-blue">{profile.department}</strong>
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            {profile?.department && (
+              <button
+                type="button"
+                onClick={() => setDeptFilter(profile.department)}
+                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
+                  deptFilter === profile.department
+                    ? 'bg-primary-blue text-white shadow-xs'
+                    : 'bg-white border border-light-blue-200 text-primary-blue hover:bg-light-blue-50'
+                }`}
+              >
+                ★ My Dept ({profile.department.includes('Electronics') ? 'EXTC' : profile.department})
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setDeptFilter('all')}
+              className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
+                deptFilter === 'all'
+                  ? 'bg-navy-blue text-white'
+                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              All Departments
+            </button>
+            {[...COLLEGE_DEPARTMENTS, 'Other'].filter(d => !matchDepartment(profile?.department, d)).map(d => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => setDeptFilter(d)}
+                className={`px-2.5 py-1 rounded-xl text-xs font-medium transition-all ${
+                  deptFilter === d
+                    ? 'bg-navy-blue text-white font-bold'
+                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Filter and Search */}
       <div className="bg-white p-4 rounded-2xl border border-light-blue-200 shadow-sm flex flex-col sm:flex-row gap-3 items-center justify-between">

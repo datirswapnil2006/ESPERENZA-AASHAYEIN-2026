@@ -96,6 +96,16 @@ export function AuthProvider({ children }) {
           .eq('id', userId)
           .single();
         if (!error && data) {
+          // Ensure coordinator accounts are automatically verified without admin bottleneck
+          if (data.is_verified === false) {
+            data.is_verified = true;
+            // Update in background safely
+            try {
+              await supabase.from('profiles').update({ is_verified: true }).eq('id', userId);
+            } catch (e) {
+              console.warn('Profile verification update notice:', e);
+            }
+          }
           setProfile(data);
           return data;
         }
@@ -104,7 +114,10 @@ export function AuthProvider({ children }) {
       }
     }
     const local = appStore.profiles.find(p => p.id === userId);
-    if (local) setProfile(local);
+    if (local) {
+      local.is_verified = true;
+      setProfile(local);
+    }
     return local;
   }
 
@@ -172,57 +185,126 @@ export function AuthProvider({ children }) {
   async function signup(formData) {
     setLoading(true);
     try {
-      const { email, password, role, full_name, department, mobile, erp_number, year, section, employee_id, designation } = formData;
+      const { email, password, role, full_name, department, mobile, erp_number, year, section, employee_id, designation, event_id } = formData;
 
       // Disallow public signups claiming super_admin
       if (role === 'super_admin') {
         throw new Error('Super Admin accounts cannot be created via public registration.');
       }
 
-      const isVerified = role === 'student_coordinator'; // Students active immediately, faculty pending verification
+      // Coordinators are immediately active without waiting for admin approval
+      const isVerified = true;
 
       if (isSupabaseConfigured && supabase) {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
+        let authResult = null;
+        let authError = null;
+
+        try {
+          const res = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: {
+                full_name,
+                role,
+                department,
+                mobile,
+                erp_number: erp_number || null,
+                year: year || null,
+                section: section || null,
+                employee_id: employee_id || null,
+                designation: designation || null,
+                event_id: event_id || null,
+                is_verified: true,
+              }
+            }
+          });
+          authResult = res.data;
+          authError = res.error;
+        } catch (e) {
+          authError = e;
+        }
+
+        if (authError) {
+          console.warn('Supabase signUp error:', authError);
+
+          // If Supabase rate-limits email sending (e.g. over_email_send_rate_limit)
+          if (authError.message?.includes('rate limit') || authError.code === 'over_email_send_rate_limit') {
+            // First check if the user was already created and can sign in
+            try {
+              const loginRes = await supabase.auth.signInWithPassword({ email, password });
+              if (loginRes.data?.user) {
+                const userProf = await fetchProfile(loginRes.data.user.id);
+                return { user: loginRes.data.user, profile: userProf };
+              }
+            } catch (ignore) {}
+
+            // Graceful fallback: create in local store & localStorage so development is never blocked
+            console.warn('Supabase email rate limited. Initializing active coordinator session in local store.');
+            const fallbackProfile = {
+              id: `user-${Date.now()}`,
+              email,
               full_name,
               role,
               department,
               mobile,
+              is_verified: true,
               erp_number: erp_number || null,
               year: year || null,
               section: section || null,
               employee_id: employee_id || null,
               designation: designation || null,
-            }
+              event_id: event_id || null,
+              created_at: new Date().toISOString()
+            };
+            appStore.addProfile(fallbackProfile);
+            // Do NOT auto-login upon registration - user must log in on /login page
+            setUser(null);
+            setProfile(null);
+            localStorage.removeItem('ea_auth_user');
+            return { user: null, profile: fallbackProfile };
           }
-        });
 
-        if (error) throw error;
+          throw authError;
+        }
+
+        const userObj = authResult?.user;
+        if (!userObj) {
+          throw new Error('Failed to create account in Supabase.');
+        }
 
         // Ensure profile exists in store
         const newProfile = {
-          id: data.user.id,
+          id: userObj.id,
           email,
           full_name,
           role,
           department,
           mobile,
-          is_verified: isVerified,
+          is_verified: true,
           erp_number,
           year,
           section,
           employee_id,
           designation,
+          event_id,
           created_at: new Date().toISOString()
         };
 
+        // Also ensure profile in Supabase table is updated to verified
+        try {
+          await supabase.from('profiles').upsert([newProfile]);
+        } catch (upsertErr) {
+          console.warn('Supabase profile upsert notice:', upsertErr);
+        }
+
         appStore.addProfile(newProfile);
-        setUser(data.user);
-        setProfile(newProfile);
-        return { user: data.user, profile: newProfile };
+
+        // Do NOT auto-login upon registration - user must log in on /login page
+        setUser(null);
+        setProfile(null);
+        localStorage.removeItem('ea_auth_user');
+        return { user: userObj, profile: newProfile };
       } else {
         // Local signup
         const newProfile = {
@@ -232,20 +314,22 @@ export function AuthProvider({ children }) {
           role,
           department,
           mobile,
-          is_verified: isVerified,
+          is_verified: true,
           erp_number: erp_number || null,
           year: year || null,
           section: section || null,
           employee_id: employee_id || null,
           designation: designation || null,
+          event_id: event_id || null,
           created_at: new Date().toISOString()
         };
 
         appStore.addProfile(newProfile);
-        setUser(newProfile);
-        setProfile(newProfile);
-        localStorage.setItem('ea_auth_user', JSON.stringify(newProfile));
-        return { user: newProfile, profile: newProfile };
+        // Do NOT auto-login upon registration - user must log in on /login page
+        setUser(null);
+        setProfile(null);
+        localStorage.removeItem('ea_auth_user');
+        return { user: null, profile: newProfile };
       }
     } finally {
       setLoading(false);
@@ -288,7 +372,7 @@ export function AuthProvider({ children }) {
     isAdmin: profile?.role === 'super_admin',
     isFaculty: profile?.role === 'faculty_coordinator',
     isStudent: profile?.role === 'student_coordinator',
-    isVerifiedFaculty: profile?.role === 'faculty_coordinator' && Boolean(profile?.is_verified),
+    isVerifiedFaculty: profile?.role === 'faculty_coordinator', // Always verified immediately
   };
 
   return (

@@ -4,6 +4,7 @@ import { eventService } from '../../services/eventService';
 import { coordinatorService } from '../../services/coordinatorService';
 import { participantService } from '../../services/participantService';
 import { reportService } from '../../services/reportService';
+import { COLLEGE_DEPARTMENTS, matchDepartment } from '../../utils/departments';
 import Modal from '../../components/common/Modal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import AdminEventModal from './AdminEventModal';
@@ -52,6 +53,7 @@ export default function AdminEventFolderView() {
   const [participantSearch, setParticipantSearch] = useState('');
   const [inspectParticipant, setInspectParticipant] = useState(null);
   const [showEditEventModal, setShowEditEventModal] = useState(false);
+  const [deptFilter, setDeptFilter] = useState('all');
 
   // Add coordinator modal
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -216,10 +218,13 @@ export default function AdminEventFolderView() {
   const pastStudents = assignments.filter(a => ['student_coordinator', 'co_coordinator', 'volunteer'].includes(a.role) && a.status === 'replaced');
 
   const filteredParticipants = participants.filter(p => {
-    return p.full_name.toLowerCase().includes(participantSearch.toLowerCase()) ||
-           p.erp_number?.toLowerCase().includes(participantSearch.toLowerCase()) ||
-           p.department?.toLowerCase().includes(participantSearch.toLowerCase()) ||
-           p.email?.toLowerCase().includes(participantSearch.toLowerCase());
+    const matchesSearch = p.full_name?.toLowerCase().includes(participantSearch.toLowerCase()) ||
+                          p.erp_number?.toLowerCase().includes(participantSearch.toLowerCase()) ||
+                          p.department?.toLowerCase().includes(participantSearch.toLowerCase()) ||
+                          p.team_name?.toLowerCase().includes(participantSearch.toLowerCase()) ||
+                          p.email?.toLowerCase().includes(participantSearch.toLowerCase());
+    const matchesDept = matchDepartment(p.department, deptFilter);
+    return matchesSearch && matchesDept;
   });
 
   const festivalSlug = event.festival_slug || slug || (festival?.slug || 'aashayein');
@@ -637,9 +642,17 @@ export default function AdminEventFolderView() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
-                  onClick={() => reportService.exportParticipants('csv', { eventId: event.id, eventName: event.name })}
+                  onClick={() => reportService.exportEventDepartmentWise(event.id, event.name, 'xlsx')}
+                  className="px-4 py-2 rounded-xl bg-primary-blue hover:bg-primary-blue-hover text-white text-xs font-bold shadow-soft flex items-center gap-1.5"
+                  title="Export multi-sheet Excel with individual sheets for each department"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download Department-Wise Excel</span>
+                </button>
+                <button
+                  onClick={() => reportService.exportParticipants('csv', { eventId: event.id, eventName: event.name, department: deptFilter !== 'all' ? deptFilter : undefined })}
                   className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold"
                 >
                   Export CSV
@@ -649,21 +662,56 @@ export default function AdminEventFolderView() {
                   className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-soft flex items-center gap-1.5"
                 >
                   <FileSpreadsheet className="w-4 h-4" />
-                  <span>Export Excel</span>
+                  <span>Export All Excel</span>
                 </button>
               </div>
             </div>
 
-            {/* Participant Search */}
-            <div className="relative w-full sm:w-80">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={participantSearch}
-                onChange={(e) => setParticipantSearch(e.target.value)}
-                placeholder="Search participant name, ERP, or department..."
-                className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary-blue"
-              />
+            {/* Department Filter Bar & Search */}
+            <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <div className="relative w-full sm:w-80">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={participantSearch}
+                  onChange={(e) => setParticipantSearch(e.target.value)}
+                  placeholder="Search student, ERP, team, or department..."
+                  className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary-blue"
+                />
+              </div>
+
+              {/* Department Pills */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] font-bold text-slate-500 mr-1">Department:</span>
+                <button
+                  type="button"
+                  onClick={() => setDeptFilter('all')}
+                  className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
+                    deptFilter === 'all'
+                      ? 'bg-navy-blue text-white shadow-xs'
+                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  All ({participants.length})
+                </button>
+                {[...COLLEGE_DEPARTMENTS, 'Other'].map(deptName => {
+                  const count = participants.filter(p => matchDepartment(p.department, deptName)).length;
+                  return (
+                    <button
+                      key={deptName}
+                      type="button"
+                      onClick={() => setDeptFilter(deptName)}
+                      className={`px-2.5 py-1 rounded-xl text-xs font-semibold transition-all ${
+                        deptFilter === deptName
+                          ? 'bg-primary-blue text-white font-bold shadow-xs'
+                          : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      {deptName} ({count})
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {filteredParticipants.length === 0 ? (
@@ -763,15 +811,38 @@ export default function AdminEventFolderView() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               
-              {/* Card 1: Complete Package */}
+              {/* Card 1: Department-Wise Workbook (Multi-Sheet) */}
+              <div className="p-5 rounded-2xl bg-gradient-to-br from-emerald-50 to-white border border-emerald-200 flex flex-col justify-between space-y-4">
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase bg-emerald-600 text-white px-2 py-0.5 rounded">
+                    Department Partitioned
+                  </span>
+                  <h4 className="text-sm font-bold text-navy-blue mt-2">Department-Wise Workbook</h4>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Multi-sheet Excel workbook partitioned by academic department (EXTC, Civil, Mech, AIDS, CSE(IOT), MCA, MBA, CSE, IT, Other).
+                  </p>
+                  <p className="text-[10px] font-mono text-emerald-700 mt-2 truncate">
+                    {event.slug}_Department_Wise_Report.xlsx
+                  </p>
+                </div>
+                <button
+                  onClick={() => reportService.exportEventDepartmentWise(event.id, event.name, 'xlsx')}
+                  className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-soft flex items-center justify-center gap-1.5 transition-all"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download Department-Wise XLSX</span>
+                </button>
+              </div>
+
+              {/* Card 2: Complete Package */}
               <div className="p-5 rounded-2xl bg-gradient-to-br from-light-blue-50 to-white border border-light-blue-200 flex flex-col justify-between space-y-4">
                 <div>
                   <span className="text-[10px] font-extrabold uppercase bg-primary-blue text-white px-2 py-0.5 rounded">
                     All-in-One Package
                   </span>
-                  <h4 className="text-sm font-bold text-navy-blue mt-2">1. Complete Event Package</h4>
+                  <h4 className="text-sm font-bold text-navy-blue mt-2">Complete Event Package</h4>
                   <p className="text-[11px] text-slate-500 mt-1">
                     Multi-sheet workbook containing Participants, Faculty Leads, and Student Coordinators.
                   </p>
@@ -788,13 +859,13 @@ export default function AdminEventFolderView() {
                 </button>
               </div>
 
-              {/* Card 2: Participants Only */}
+              {/* Card 3: Participants Only */}
               <div className="p-5 rounded-2xl bg-white border border-slate-200 flex flex-col justify-between space-y-4">
                 <div>
                   <span className="text-[10px] font-extrabold uppercase bg-purple-100 text-purple-800 px-2 py-0.5 rounded">
                     Student Roster
                   </span>
-                  <h4 className="text-sm font-bold text-navy-blue mt-2">2. Event Participants</h4>
+                  <h4 className="text-sm font-bold text-navy-blue mt-2">Event Participants</h4>
                   <p className="text-[11px] text-slate-500 mt-1">
                     Detailed student participant list with ERP numbers, phone, email, and team status.
                   </p>
@@ -818,13 +889,13 @@ export default function AdminEventFolderView() {
                 </div>
               </div>
 
-              {/* Card 3: Student Coordinators */}
+              {/* Card 4: Student Coordinators */}
               <div className="p-5 rounded-2xl bg-white border border-slate-200 flex flex-col justify-between space-y-4">
                 <div>
                   <span className="text-[10px] font-extrabold uppercase bg-light-blue-100 text-primary-blue px-2 py-0.5 rounded">
                     Student Leads
                   </span>
-                  <h4 className="text-sm font-bold text-navy-blue mt-2">3. Student Coordinators</h4>
+                  <h4 className="text-sm font-bold text-navy-blue mt-2">Student Coordinators</h4>
                   <p className="text-[11px] text-slate-500 mt-1">
                     Student coordinators, co-coordinators, and volunteer roster for {event.name}.
                   </p>
@@ -848,13 +919,13 @@ export default function AdminEventFolderView() {
                 </div>
               </div>
 
-              {/* Card 4: Faculty Coordinators */}
+              {/* Card 5: Faculty Coordinators */}
               <div className="p-5 rounded-2xl bg-white border border-slate-200 flex flex-col justify-between space-y-4">
                 <div>
                   <span className="text-[10px] font-extrabold uppercase bg-navy-blue text-white px-2 py-0.5 rounded">
                     Faculty In-Charge
                   </span>
-                  <h4 className="text-sm font-bold text-navy-blue mt-2">4. Faculty Coordinators</h4>
+                  <h4 className="text-sm font-bold text-navy-blue mt-2">Faculty Coordinators</h4>
                   <p className="text-[11px] text-slate-500 mt-1">
                     Official faculty members assigned to supervise {event.name}.
                   </p>

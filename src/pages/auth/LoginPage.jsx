@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { useAuth } from '../../context/AuthContext';
@@ -8,6 +8,7 @@ import {
   Mail, 
   ArrowRight, 
   AlertCircle,
+  CheckCircle2,
   ShieldCheck
 } from 'lucide-react';
 
@@ -19,7 +20,18 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
 
-  const { register, handleSubmit, formState: { errors } } = useForm();
+  const { register, handleSubmit, formState: { errors }, setValue } = useForm({
+    defaultValues: {
+      email: location.state?.registeredEmail || '',
+      password: '',
+    }
+  });
+
+  useEffect(() => {
+    if (location.state?.registeredEmail) {
+      setValue('email', location.state.registeredEmail);
+    }
+  }, [location.state, setValue]);
 
   const onSubmit = async (data) => {
     setLoading(true);
@@ -65,6 +77,20 @@ export default function LoginPage() {
       {/* Main Login Card */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-light-blue-200 shadow-soft">
         
+        {location.state?.successMessage && (
+          <div className="mb-5 p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-start gap-2.5 text-emerald-800 text-xs animate-fade-in">
+            <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
+            <div>
+              <p className="font-bold">{location.state.successMessage}</p>
+              {location.state.registeredEmail && (
+                <p className="text-[11px] text-emerald-700 mt-0.5 font-medium">
+                  Email: <span className="font-mono font-bold">{location.state.registeredEmail}</span>
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
         {errorMsg && (
           <div className="mb-5 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 flex items-start gap-2.5 text-rose-700 text-xs">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -100,6 +126,7 @@ export default function LoginPage() {
               <input
                 type="password"
                 {...register('password', { required: 'Password is required' })}
+                autoFocus={Boolean(location.state?.registeredEmail)}
                 placeholder="••••••••"
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-primary-blue/30 focus:border-primary-blue"
               />

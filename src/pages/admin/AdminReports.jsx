@@ -101,6 +101,35 @@ export default function AdminReports() {
         </button>
       </div>
 
+      {/* Section 1.5: Carnival Department-Wise Consolidated Export Banner */}
+      <div className="bg-gradient-to-r from-navy-blue via-primary-blue-dark to-primary-blue text-white rounded-3xl p-6 sm:p-7 shadow-soft flex flex-col md:flex-row items-center justify-between gap-6 border border-light-blue-200/30">
+        <div className="space-y-2 max-w-2xl">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-light-blue-400/20 text-light-blue-200 text-xs font-bold border border-light-blue-300/30">
+            <span>🎪 CARNIVAL SPECIAL REPORT</span>
+          </div>
+          <h3 className="text-xl font-black">Carnival Department-Wise Multi-Sheet Workbook</h3>
+          <p className="text-xs text-slate-200 leading-relaxed">
+            Exports Carnival participants partitioned into individual sheets for all 9 departments (EXTC, Civil, Mech, AIDS, CSE(IOT), MCA, MBA, CSE, IT, and Other), complete with coordinator assignments and summary analytics.
+          </p>
+        </div>
+
+        <button
+          onClick={() => {
+            const carnivalEvt = events.find(e => e.slug === 'carnival' || e.name?.toLowerCase().includes('carnival')) || events[0];
+            if (carnivalEvt) {
+              handleExport(() => reportService.exportEventDepartmentWise(carnivalEvt.id, 'Carnival', 'xlsx'));
+            } else {
+              alert('Carnival event not found in database.');
+            }
+          }}
+          disabled={exporting}
+          className="px-5 py-3 rounded-2xl bg-amber-400 text-navy-blue hover:bg-amber-300 font-extrabold text-xs shadow-soft transition-all shrink-0 flex items-center gap-2"
+        >
+          <Download className="w-4 h-4 text-navy-blue" />
+          <span>Download Carnival Dept-Wise (.XLSX)</span>
+        </button>
+      </div>
+
       {/* Section 2: General & Festival-Wide Downloads */}
       <div className="space-y-4">
         <h3 className="text-base font-extrabold text-navy-blue">
@@ -261,9 +290,24 @@ export default function AdminReports() {
               </span>
             </div>
 
-            {/* 4 Dedicated Event Downloads */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* 5 Dedicated Event Downloads */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               
+              {/* Department-Wise Multi-Sheet Workbook */}
+              <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200 flex flex-col justify-between space-y-3">
+                <div>
+                  <h5 className="font-bold text-emerald-900 text-xs">Department-Wise Multi-Sheet</h5>
+                  <p className="text-[11px] text-slate-500 mt-0.5 font-mono">{selectedEvent.slug}_Department_Wise.xlsx</p>
+                </div>
+                <button
+                  onClick={() => handleExport(() => reportService.exportEventDepartmentWise(selectedEvent.id, selectedEvent.name, 'xlsx'))}
+                  className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-soft flex items-center justify-center gap-1.5 transition-all"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download Dept-Wise XLSX</span>
+                </button>
+              </div>
+
               {/* 1. Student Coordinators */}
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col justify-between space-y-3">
                 <div>

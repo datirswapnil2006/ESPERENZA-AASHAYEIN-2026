@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { useAuth } from '../../context/AuthContext';
 import { eventService } from '../../services/eventService';
 import { coordinatorService } from '../../services/coordinatorService';
+import { COLLEGE_DEPARTMENTS } from '../../utils/departments';
 import { 
   Sparkles, 
   GraduationCap, 
@@ -22,7 +23,7 @@ import {
 
 export default function CoordinatorSignupPage() {
   const navigate = useNavigate();
-  const { signup } = useAuth();
+  const { signup, logout } = useAuth();
 
   const [roleType, setRoleType] = useState('student_coordinator'); // student_coordinator or faculty_coordinator
   const [festivals, setFestivals] = useState([]);
@@ -33,10 +34,10 @@ export default function CoordinatorSignupPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
-  const [successInfo, setSuccessInfo] = useState(null);
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm();
   const passwordWatch = watch('password', '');
+  const selectedDeptWatch = watch('department', '');
 
   // Load festivals and events dynamically from Supabase
   useEffect(() => {
@@ -81,43 +82,53 @@ export default function CoordinatorSignupPage() {
     }
 
     try {
+      const finalDept = data.department === 'Other' && data.other_department 
+        ? data.other_department.trim() 
+        : data.department;
+
       const signupPayload = {
         email: data.email,
         password: data.password,
         role: roleType,
         full_name: data.full_name,
-        department: data.department,
+        department: finalDept,
         mobile: data.mobile,
+        event_id: data.event_id || null,
         // Student specific
         erp_number: roleType === 'student_coordinator' ? data.erp_number : null,
         year: roleType === 'student_coordinator' ? data.year : null,
         section: roleType === 'student_coordinator' ? data.section : null,
         // Faculty specific
-        employee_id: roleType === 'faculty_coordinator' ? data.employee_id : null,
-        designation: roleType === 'faculty_coordinator' ? data.designation : null,
+        employee_id: null,
+        designation: roleType === 'faculty_coordinator' ? 'Faculty Coordinator' : null,
       };
 
       const result = await signup(signupPayload);
 
-      // Create coordinator assignment/application for the chosen event if selected
+      // Create coordinator assignment for the chosen event if selected
       if (data.event_id && result?.profile?.id) {
         try {
           await coordinatorService.assignCoordinator({
             eventId: data.event_id,
             userId: result.profile.id,
             role: roleType,
-            assignedBy: 'self_registration'
+            assignedBy: result.profile.id
           });
         } catch (assignErr) {
           console.warn('Assignment notice:', assignErr);
         }
       }
 
-      setSuccessInfo({
-        role: roleType,
-        full_name: data.full_name,
-        email: data.email,
-        isVerified: roleType === 'student_coordinator',
+      // Explicitly sign out so registration NEVER auto-logs in
+      await logout();
+
+      // Immediately open the login page with prefilled email and success notification
+      navigate('/login', {
+        replace: true,
+        state: {
+          registeredEmail: data.email,
+          successMessage: `Account created successfully for ${data.full_name}! Please enter your password to sign in.`
+        }
       });
     } catch (err) {
       setErrorMsg(err.message || 'Failed to complete registration.');
@@ -125,54 +136,6 @@ export default function CoordinatorSignupPage() {
       setSubmitting(false);
     }
   };
-
-  if (successInfo) {
-    const isFaculty = successInfo.role === 'faculty_coordinator';
-
-    return (
-      <div className="max-w-xl mx-auto px-4 py-16 animate-fade-in">
-        <div className="bg-white rounded-3xl p-8 border border-light-blue-200 shadow-soft-lg text-center space-y-5">
-          <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto ${
-            isFaculty ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'
-          }`}>
-            {isFaculty ? <Clock className="w-9 h-9" /> : <CheckCircle2 className="w-9 h-9" />}
-          </div>
-
-          <h2 className="text-2xl font-black text-navy-blue">
-            {isFaculty ? 'Faculty Account Created (Verification Pending)' : 'Student Coordinator Account Activated!'}
-          </h2>
-
-          <p className="text-sm text-slate-600 leading-relaxed">
-            {isFaculty ? (
-              <>
-                Welcome, <strong>{successInfo.full_name}</strong>. Your faculty profile has been created. 
-                In compliance with security protocols, an institutional Super Admin must verify your faculty designation before event-management and form editing permissions are enabled.
-              </>
-            ) : (
-              <>
-                Welcome, <strong>{successInfo.full_name}</strong>. Your student coordinator profile is activated immediately. You can now access your coordinator dashboard.
-              </>
-            )}
-          </p>
-
-          <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link
-              to={isFaculty ? '/faculty' : '/student'}
-              className="w-full sm:w-auto px-6 py-3 rounded-xl bg-primary-blue hover:bg-primary-blue-hover text-white text-xs font-bold shadow-soft transition-all"
-            >
-              Proceed to Dashboard
-            </Link>
-            <Link
-              to="/"
-              className="w-full sm:w-auto px-5 py-3 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50"
-            >
-              Return Home
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-12 space-y-8 animate-fade-in">
@@ -300,18 +263,30 @@ export default function CoordinatorSignupPage() {
                 </label>
                 <select
                   {...register('department', { required: 'Department is required' })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-primary-blue"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary-blue"
                 >
                   <option value="">Select Department</option>
-                  <option value="Computer Science & Engineering">Computer Science & Engineering</option>
-                  <option value="Information Technology">Information Technology</option>
-                  <option value="Electronics & Communication">Electronics & Communication</option>
-                  <option value="Mechanical Engineering">Mechanical Engineering</option>
-                  <option value="Civil Engineering">Civil Engineering</option>
-                  <option value="Management Studies">Management Studies</option>
-                  <option value="Humanities & Applied Sciences">Humanities & Applied Sciences</option>
+                  {COLLEGE_DEPARTMENTS.map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                  <option value="Other">Other (Please specify)</option>
                 </select>
                 {errors.department && <p className="text-rose-600 text-[11px] mt-1">{errors.department.message}</p>}
+
+                {selectedDeptWatch === 'Other' && (
+                  <div className="mt-2.5 animate-fade-in">
+                    <label className="block text-[11px] font-bold text-navy-blue mb-1">
+                      Specify Your Department *
+                    </label>
+                    <input
+                      type="text"
+                      {...register('other_department', { required: 'Please specify your department' })}
+                      placeholder="Enter full department name"
+                      className="w-full px-3.5 py-2 rounded-xl border border-primary-blue/40 bg-light-blue-50/50 text-navy-blue font-semibold text-xs focus:outline-none focus:ring-2 focus:ring-primary-blue"
+                    />
+                    {errors.other_department && <p className="text-rose-600 text-[11px] mt-1">{errors.other_department.message}</p>}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -342,8 +317,8 @@ export default function CoordinatorSignupPage() {
             </div>
           </div>
 
-          {/* Section: Role Specific Fields */}
-          {roleType === 'student_coordinator' ? (
+          {/* Section: Role Specific Fields for Students */}
+          {roleType === 'student_coordinator' && (
             <div className="space-y-4 pt-2">
               <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 border-b pb-2">
                 Student Academic Details
@@ -389,39 +364,6 @@ export default function CoordinatorSignupPage() {
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-primary-blue"
                   />
                   {errors.section && <p className="text-rose-600 text-[11px] mt-1">{errors.section.message}</p>}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4 pt-2">
-              <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 border-b pb-2">
-                Faculty Credentials
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-navy-blue mb-1.5">
-                    Employee ID *
-                  </label>
-                  <input
-                    type="text"
-                    {...register('employee_id', { required: 'Employee ID is required' })}
-                    placeholder="e.g. FAC-CSE-042"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-primary-blue"
-                  />
-                  {errors.employee_id && <p className="text-rose-600 text-[11px] mt-1">{errors.employee_id.message}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-navy-blue mb-1.5">
-                    Designation *
-                  </label>
-                  <input
-                    type="text"
-                    {...register('designation', { required: 'Designation is required' })}
-                    placeholder="e.g. Associate Professor / Dean"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-primary-blue"
-                  />
-                  {errors.designation && <p className="text-rose-600 text-[11px] mt-1">{errors.designation.message}</p>}
                 </div>
               </div>
             </div>

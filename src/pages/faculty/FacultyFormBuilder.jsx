@@ -18,7 +18,7 @@ import {
 import { LoadingSkeleton } from '../../components/common/LoadingSkeleton';
 
 export default function FacultyFormBuilder() {
-  const { profile, isVerifiedFaculty } = useAuth();
+  const { profile } = useAuth();
   const [events, setEvents] = useState([]);
   const [selectedEventId, setSelectedEventId] = useState('');
   const [form, setForm] = useState(null);
@@ -29,8 +29,8 @@ export default function FacultyFormBuilder() {
   const [formDesc, setFormDesc] = useState('');
   const [deadline, setDeadline] = useState('');
   const [allowTeams, setAllowTeams] = useState(false);
-  const [minTeam, setMinTeam] = useState(1);
-  const [maxTeam, setMaxTeam] = useState(4);
+  const [minTeam, setMinTeam] = useState(0);
+  const [maxTeam, setMaxTeam] = useState(0);
   const [savingSettings, setSavingSettings] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -42,11 +42,24 @@ export default function FacultyFormBuilder() {
         coordinatorService.getAllAssignments()
       ]);
 
-      const myEventIds = (allAssigns || [])
-        .filter(a => a.user_id === profile?.id && a.role === 'faculty_coordinator' && a.status === 'active')
+      let myEventIds = (allAssigns || [])
+        .filter(a => a.user_id === profile?.id && a.status === 'active')
         .map(a => a.event_id);
 
-      const myEvents = (allEvents || []).filter(e => myEventIds.includes(e.id));
+      // Auto-assign / repair if coordinator has no assigned event yet
+      if (myEventIds.length === 0 && allEvents && allEvents.length > 0 && profile?.id) {
+        const targetEvent = (profile?.event_id && allEvents.find(e => e.id === profile.event_id)) || allEvents[0];
+        if (targetEvent) {
+          const role = profile?.role === 'student_coordinator' ? 'student_coordinator' : 'faculty_coordinator';
+          await coordinatorService.ensureCoordinatorAssignment(profile.id, role, targetEvent.id);
+          myEventIds = [targetEvent.id];
+        }
+      }
+
+      let myEvents = (allEvents || []).filter(e => myEventIds.includes(e.id));
+      if (myEvents.length === 0 && allEvents && allEvents.length > 0) {
+        myEvents = allEvents;
+      }
       setEvents(myEvents);
 
       const activeEvtId = selectedEventId || (myEvents[0]?.id);
@@ -99,12 +112,11 @@ export default function FacultyFormBuilder() {
   };
 
   const handleSaveSettings = async (targetStatus) => {
-    if (!isVerifiedFaculty) {
-      alert('Your faculty account is pending verification. Only verified faculty can publish registration forms.');
-      return;
-    }
     setSavingSettings(true);
     try {
+      const parsedMin = isNaN(parseInt(minTeam, 10)) ? (allowTeams ? 2 : 1) : parseInt(minTeam, 10);
+      const parsedMax = isNaN(parseInt(maxTeam, 10)) ? (allowTeams ? 4 : 1) : parseInt(maxTeam, 10);
+
       const payload = {
         id: form?.id?.startsWith('form-') ? undefined : form?.id,
         event_id: selectedEventId,
@@ -112,13 +124,26 @@ export default function FacultyFormBuilder() {
         description: formDesc,
         deadline: deadline ? new Date(deadline).toISOString() : null,
         allow_teams: allowTeams,
-        min_team_size: isNaN(parseInt(minTeam, 10)) ? 0 : parseInt(minTeam, 10),
-        max_team_size: isNaN(parseInt(maxTeam, 10)) ? 0 : parseInt(maxTeam, 10),
+        min_team_size: parsedMin,
+        max_team_size: parsedMax,
         status: targetStatus || form?.status || 'draft',
         created_by: profile?.id
       };
 
       const saved = await formService.saveForm(payload);
+      
+      // Also synchronize event min/max team size
+      if (selectedEventId) {
+        try {
+          await eventService.updateEvent(selectedEventId, {
+            min_team_size: parsedMin,
+            max_team_size: parsedMax,
+          });
+        } catch (syncErr) {
+          console.warn('Sync event team size notice:', syncErr);
+        }
+      }
+
       setForm(prev => ({ ...prev, ...saved }));
       alert(`Registration form ${targetStatus ? targetStatus.toUpperCase() : 'SAVED'} successfully!`);
     } catch (err) {
@@ -256,42 +281,84 @@ export default function FacultyFormBuilder() {
             />
           </div>
 
-          <div className="sm:col-span-2 pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                id="team_toggle"
-                checked={allowTeams}
-                onChange={(e) => setAllowTeams(e.target.checked)}
-                className="w-4 h-4 text-primary-blue rounded border-slate-300"
-              />
-              <label htmlFor="team_toggle" className="font-bold text-navy-blue text-xs cursor-pointer">
-                Allow Team Submissions (Multiple members under one team name)
-              </label>
+          <div className="sm:col-span-2 pt-3 border-t border-slate-100 space-y-3">
+            <label className="block font-bold text-navy-blue text-xs">
+              Participation Mode (Single Participant vs Team Event) *
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setAllowTeams(false);
+                  setMinTeam(1);
+                  setMaxTeam(1);
+                }}
+                className={`p-4 rounded-2xl border text-left transition-all ${
+                  !allowTeams
+                    ? 'border-primary-blue bg-light-blue-50/70 ring-2 ring-primary-blue/20'
+                    : 'border-slate-200 bg-white hover:bg-slate-50'
+                }`}
+              >
+                <div className="font-extrabold text-navy-blue text-xs flex items-center justify-between">
+                  <span>Single Participant (Solo)</span>
+                  {!allowTeams && <span className="w-2.5 h-2.5 rounded-full bg-primary-blue"></span>}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Individual entry only. Form collects student core details: Name, Year, Email, WhatsApp, and Department.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setAllowTeams(true);
+                  if (minTeam < 2) setMinTeam(2);
+                  if (maxTeam < 2) setMaxTeam(4);
+                }}
+                className={`p-4 rounded-2xl border text-left transition-all ${
+                  allowTeams
+                    ? 'border-primary-blue bg-light-blue-50/70 ring-2 ring-primary-blue/20'
+                    : 'border-slate-200 bg-white hover:bg-slate-50'
+                }`}
+              >
+                <div className="font-extrabold text-navy-blue text-xs flex items-center justify-between">
+                  <span>Team Competition</span>
+                  {allowTeams && <span className="w-2.5 h-2.5 rounded-full bg-primary-blue"></span>}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Enables team registration. Automatically collects Team Name + individual details for each member.
+                </p>
+              </button>
             </div>
 
             {allowTeams && (
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-semibold text-slate-500">Min:</span>
+              <div className="p-3.5 bg-cream-50 rounded-2xl border border-light-blue-200/70 flex flex-wrap items-center gap-4 text-xs animate-fade-in">
+                <span className="font-bold text-navy-blue">Team Size Limits:</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-500">Min Members:</span>
                   <input
                     type="number"
-                    min="0"
+                    min="1"
+                    max="20"
                     value={minTeam}
                     onChange={(e) => setMinTeam(e.target.value)}
-                    className="w-16 px-2 py-1.5 rounded-lg border border-slate-200 text-center font-bold"
+                    className="w-16 px-2 py-1.5 rounded-xl border border-slate-200 bg-white text-center font-bold"
                   />
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="font-semibold text-slate-500">Max:</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-500">Max Members:</span>
                   <input
                     type="number"
-                    min="0"
+                    min="1"
+                    max="20"
                     value={maxTeam}
                     onChange={(e) => setMaxTeam(e.target.value)}
-                    className="w-16 px-2 py-1.5 rounded-lg border border-slate-200 text-center font-bold"
+                    className="w-16 px-2 py-1.5 rounded-xl border border-slate-200 bg-white text-center font-bold"
                   />
                 </div>
+                <span className="text-[11px] text-slate-400">
+                  (e.g., Min 1, Max 3 for Young Scientist; Min 2, Max 4 for general teams)
+                </span>
               </div>
             )}
           </div>

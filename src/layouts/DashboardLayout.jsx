@@ -116,13 +116,7 @@ export default function DashboardLayout() {
               <span className="text-[10px] text-light-blue-200 uppercase font-bold tracking-wider">
                 {profile?.role?.replace('_', ' ')}
               </span>
-              {isFaculty && (
-                isVerifiedFaculty ? (
-                  <span title="Verified Faculty"><CheckCircle className="w-3 h-3 text-emerald-400" /></span>
-                ) : (
-                  <span title="Verification Pending"><Clock className="w-3 h-3 text-amber-400" /></span>
-                )
-              )}
+              <span title="Active Coordinator"><CheckCircle className="w-3 h-3 text-emerald-400" /></span>
             </div>
           </div>
           <button
@@ -344,6 +338,8 @@ export default function DashboardLayout() {
               {[
                 { name: 'Dashboard', path: '/student', icon: LayoutDashboard },
                 { name: 'Assigned Events', path: '/student/events', icon: Calendar },
+                { name: 'Registration Form', path: '/student/forms', icon: FileEdit },
+                { name: 'Student Co-Coordinators', path: '/student/coordinators', icon: Users },
                 { name: 'Participants Info', path: '/student/participants', icon: ClipboardList },
                 { name: 'Profile', path: '/student/profile', icon: Settings },
               ].map(item => {
@@ -390,20 +386,7 @@ export default function DashboardLayout() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 pb-16 md:pb-0">
         
-        {/* Verification Pending Banner for Faculty */}
-        {isFaculty && !isVerifiedFaculty && (
-          <div className="bg-amber-500 text-navy-blue px-6 py-3 font-semibold text-xs flex items-center justify-between shadow-sm">
-            <div className="flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 shrink-0 text-navy-blue" />
-              <span>
-                Account Verification Pending: Your faculty registration has been submitted. A Super Admin must approve your credentials before you can configure participant registration forms or modify event coordinator teams.
-              </span>
-            </div>
-            <span className="text-[11px] bg-navy-blue text-amber-300 px-2 py-0.5 rounded-md font-bold shrink-0">
-              PENDING ADMIN VERIFICATION
-            </span>
-          </div>
-        )}
+
 
         {/* Top Desktop Bar */}
         <header className="hidden md:flex bg-white border-b border-light-blue-200/80 px-8 py-4 items-center justify-between">

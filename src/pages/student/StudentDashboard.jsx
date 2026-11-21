@@ -32,7 +32,7 @@ export default function StudentDashboard() {
   async function loadStudentData() {
     setLoading(true);
     try {
-      const [allEvents, allAssigns, allParts, allAnns] = await Promise.all([
+      let [allEvents, allAssigns, allParts, allAnns] = await Promise.all([
         eventService.getAllEvents(),
         coordinatorService.getAllAssignments(),
         participantService.getAllParticipants(),
@@ -40,10 +40,23 @@ export default function StudentDashboard() {
       ]);
 
       // Filter events assigned to current student
-      const myAssignments = (allAssigns || []).filter(
-        a => a.user_id === profile?.id && ['student_coordinator', 'co_coordinator', 'volunteer'].includes(a.role) && a.status === 'active'
+      let myAssignments = (allAssigns || []).filter(
+        a => a.user_id === profile?.id && a.status === 'active'
       );
-      const myEventIds = myAssignments.map(a => a.event_id);
+      let myEventIds = myAssignments.map(a => a.event_id);
+
+      // Auto-assign / repair if student coordinator has no assigned event yet
+      if (myEventIds.length === 0 && allEvents && allEvents.length > 0 && profile?.id) {
+        const targetEvent = (profile?.event_id && allEvents.find(e => e.id === profile.event_id)) || allEvents[0];
+        if (targetEvent) {
+          await coordinatorService.ensureCoordinatorAssignment(profile.id, 'student_coordinator', targetEvent.id);
+          myEventIds = [targetEvent.id];
+          const freshAssigns = await coordinatorService.getAllAssignments();
+          if (freshAssigns) {
+            allAssigns = freshAssigns;
+          }
+        }
+      }
 
       const myEvents = (allEvents || []).filter(e => myEventIds.includes(e.id));
       setAssignedEvents(myEvents);
@@ -209,12 +222,24 @@ export default function StudentDashboard() {
                     </div>
                   </div>
 
-                  <div className="pt-2 flex items-center gap-2">
+                  <div className="pt-2 grid grid-cols-3 gap-2">
+                    <Link
+                      to="/student/forms"
+                      className="text-center py-2 px-2.5 rounded-xl bg-light-blue-100 hover:bg-light-blue-200 text-primary-blue text-xs font-bold transition-all truncate"
+                    >
+                      Manage Form
+                    </Link>
+                    <Link
+                      to="/student/coordinators"
+                      className="text-center py-2 px-2.5 rounded-xl bg-light-blue-100 hover:bg-light-blue-200 text-primary-blue text-xs font-bold transition-all truncate"
+                    >
+                      + Co-Coordinators
+                    </Link>
                     <Link
                       to="/student/participants"
-                      className="w-full text-center py-2 px-3 rounded-xl bg-primary-blue hover:bg-primary-blue-hover text-white text-xs font-bold shadow-soft transition-all"
+                      className="text-center py-2 px-2.5 rounded-xl bg-primary-blue hover:bg-primary-blue-hover text-white text-xs font-bold shadow-soft transition-all truncate"
                     >
-                      View Student Roster
+                      Participants
                     </Link>
                   </div>
                 </div>

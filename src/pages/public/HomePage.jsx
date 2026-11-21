@@ -114,16 +114,10 @@ export default function HomePage() {
               {/* Quick Trust Highlights */}
               <div className="pt-6 border-t border-light-blue-200/80 flex flex-wrap items-center justify-center lg:justify-start gap-6 text-xs font-semibold text-slate-500">
                 <div className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>Live Supabase Cloud Database</span>
+                </div>
+                <div className="flex items-center gap-1.5"> 
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>Role-Based Coordinator Console</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>Dynamic Form Builder</span>
                 </div>
               </div>
             </div>

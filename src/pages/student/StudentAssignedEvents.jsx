@@ -9,32 +9,75 @@ import { LoadingSkeleton } from '../../components/common/LoadingSkeleton';
 export default function StudentAssignedEvents() {
   const { profile } = useAuth();
   const [events, setEvents] = useState([]);
+  const [availableEvents, setAvailableEvents] = useState([]);
+  const [selectedToLink, setSelectedToLink] = useState('');
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [linking, setLinking] = useState(false);
+
+  async function loadData() {
+    setLoading(true);
+    try {
+      const [allEvents, allAssigns] = await Promise.all([
+        eventService.getAllEvents(),
+        coordinatorService.getAllAssignments()
+      ]);
+
+      setAvailableEvents(allEvents || []);
+
+      let myEventIds = (allAssigns || [])
+        .filter(a => (a.user_id === profile?.id || a.profiles?.email === profile?.email) && a.status === 'active')
+        .map(a => a.event_id);
+
+      // Auto-assign / repair if student coordinator has no assigned event yet
+      if (myEventIds.length === 0 && allEvents && allEvents.length > 0 && profile?.id) {
+        const targetEvent = (profile?.event_id && allEvents.find(e => e.id === profile.event_id))
+          || allEvents.find(e => e.slug === 'carnival')
+          || allEvents[0];
+        if (targetEvent) {
+          await coordinatorService.ensureCoordinatorAssignment(profile.id, 'student_coordinator', targetEvent.id);
+          myEventIds = [targetEvent.id];
+          const freshAssigns = await coordinatorService.getAllAssignments();
+          setAssignments(freshAssigns || []);
+        }
+      }
+
+      let matchedEvents = (allEvents || []).filter(e => myEventIds.includes(e.id));
+      if (matchedEvents.length === 0 && allEvents && allEvents.length > 0) {
+        matchedEvents = allEvents;
+      }
+      setEvents(matchedEvents);
+      if (allAssigns) {
+        setAssignments(allAssigns);
+      }
+    } catch (err) {
+      console.error('Error fetching student events:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    async function loadData() {
-      setLoading(true);
-      try {
-        const [allEvents, allAssigns] = await Promise.all([
-          eventService.getAllEvents(),
-          coordinatorService.getAllAssignments()
-        ]);
-
-        const myEventIds = (allAssigns || [])
-          .filter(a => a.user_id === profile?.id && a.status === 'active')
-          .map(a => a.event_id);
-
-        setEvents((allEvents || []).filter(e => myEventIds.includes(e.id)));
-        setAssignments(allAssigns || []);
-      } catch (err) {
-        console.error('Error fetching student events:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
     loadData();
   }, [profile]);
+
+  const handleLinkEvent = async () => {
+    if (!selectedToLink || !profile?.id) return;
+    setLinking(true);
+    try {
+      await coordinatorService.assignCoordinator({
+        eventId: selectedToLink,
+        userId: profile.id,
+        role: 'student_coordinator',
+        assignedBy: profile.id
+      });
+      await loadData();
+    } catch (err) {
+      alert('Failed to link event: ' + err.message);
+    } finally {
+      setLinking(false);
+    }
+  };
 
   if (loading) return <LoadingSkeleton lines={6} />;
 
@@ -48,8 +91,41 @@ export default function StudentAssignedEvents() {
       </div>
 
       {events.length === 0 ? (
-        <div className="bg-white rounded-3xl p-16 text-center border border-light-blue-200">
-          <p className="text-slate-500 font-medium">No assigned events linked to your student account.</p>
+        <div className="bg-white rounded-3xl p-12 text-center border border-light-blue-200 shadow-soft max-w-xl mx-auto space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-light-blue-100 text-primary-blue flex items-center justify-center mx-auto">
+            <Calendar className="w-6 h-6" />
+          </div>
+          <h3 className="text-lg font-bold text-navy-blue">Select Your Assigned Event</h3>
+          <p className="text-xs text-slate-500 max-w-md mx-auto">
+            Link your student coordinator account to a competition to view participants, edit event guidelines, and add student co-coordinators.
+          </p>
+          {availableEvents.length > 0 ? (
+            <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2">
+              <select
+                value={selectedToLink}
+                onChange={(e) => setSelectedToLink(e.target.value)}
+                className="w-full sm:w-64 px-3.5 py-2.5 rounded-xl border border-light-blue-200 text-xs font-semibold bg-white text-navy-blue focus:outline-none focus:ring-2 focus:ring-primary-blue"
+              >
+                <option value="">-- Choose Festival Event --</option>
+                {availableEvents.map(evt => (
+                  <option key={evt.id} value={evt.id}>
+                    {evt.name} ({evt.festival_slug === 'esperanza' ? 'Esperenza' : 'Aashayein'})
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={handleLinkEvent}
+                disabled={!selectedToLink || linking}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-primary-blue hover:bg-primary-blue-hover disabled:opacity-50 text-white text-xs font-bold transition-all"
+              >
+                {linking ? 'Linking...' : 'Link Event'}
+              </button>
+            </div>
+          ) : (
+            <p className="text-xs text-amber-600 font-semibold">
+              No festival events found in the database.
+            </p>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -94,17 +170,31 @@ export default function StudentAssignedEvents() {
                 </div>
 
                 <div className="pt-2 flex items-center gap-2">
-                  <Link
-                    to="/student/participants"
-                    className="flex-1 text-center py-2 px-3 rounded-xl bg-primary-blue hover:bg-primary-blue-hover text-white text-xs font-bold shadow-soft"
-                  >
-                    Participant List
-                  </Link>
+                  <div className="flex-1 grid grid-cols-3 gap-1.5">
+                    <Link
+                      to="/student/forms"
+                      className="text-center py-2 px-2 rounded-xl bg-light-blue-100 hover:bg-light-blue-200 text-primary-blue text-xs font-bold transition-all truncate"
+                    >
+                      Form
+                    </Link>
+                    <Link
+                      to="/student/coordinators"
+                      className="text-center py-2 px-2 rounded-xl bg-light-blue-100 hover:bg-light-blue-200 text-primary-blue text-xs font-bold transition-all truncate"
+                    >
+                      + Co-Coords
+                    </Link>
+                    <Link
+                      to="/student/participants"
+                      className="text-center py-2 px-2 rounded-xl bg-primary-blue hover:bg-primary-blue-hover text-white text-xs font-bold shadow-soft transition-all truncate"
+                    >
+                      Participants
+                    </Link>
+                  </div>
                   <a
                     href={`/events/${evt.festival_slug}/${evt.slug}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-2 rounded-xl border text-slate-600 hover:bg-slate-50"
+                    className="p-2 rounded-xl border text-slate-600 hover:bg-slate-50 shrink-0"
                   >
                     <ExternalLink className="w-4 h-4" />
                   </a>

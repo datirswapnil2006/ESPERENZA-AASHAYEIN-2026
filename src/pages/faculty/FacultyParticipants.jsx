@@ -4,6 +4,7 @@ import { participantService } from '../../services/participantService';
 import { eventService } from '../../services/eventService';
 import { coordinatorService } from '../../services/coordinatorService';
 import { reportService } from '../../services/reportService';
+import { COLLEGE_DEPARTMENTS, matchDepartment } from '../../utils/departments';
 import Modal from '../../components/common/Modal';
 import { 
   ClipboardList, 
@@ -25,6 +26,7 @@ export default function FacultyParticipants() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [inspectTarget, setInspectTarget] = useState(null);
+  const [deptFilter, setDeptFilter] = useState(profile?.department || 'all');
 
   async function loadData() {
     setLoading(true);
@@ -35,18 +37,29 @@ export default function FacultyParticipants() {
         participantService.getAllParticipants()
       ]);
 
-      const myEventIds = (allAssigns || [])
-        .filter(a => a.user_id === profile?.id && a.role === 'faculty_coordinator' && a.status === 'active')
+      let myEventIds = (allAssigns || [])
+        .filter(a => a.user_id === profile?.id && a.status === 'active')
         .map(a => a.event_id);
 
-      const myEvents = (allEvents || []).filter(e => myEventIds.includes(e.id));
+      if (myEventIds.length === 0 && allEvents && allEvents.length > 0 && profile?.id) {
+        const targetEvent = (profile?.event_id && allEvents.find(e => e.id === profile.event_id)) || allEvents[0];
+        if (targetEvent) {
+          myEventIds = [targetEvent.id];
+        }
+      }
+
+      let myEvents = (allEvents || []).filter(e => myEventIds.includes(e.id));
+      if (myEvents.length === 0 && allEvents && allEvents.length > 0) {
+        myEvents = allEvents;
+      }
       setEvents(myEvents);
 
       if (myEvents.length > 0 && !selectedEventId) {
         setSelectedEventId(myEvents[0].id);
       }
 
-      const myParts = (allParts || []).filter(p => myEventIds.includes(p.event_id));
+      const activeEvtIds = myEvents.map(e => e.id);
+      const myParts = (allParts || []).filter(p => activeEvtIds.includes(p.event_id));
       setParticipants(myParts);
     } catch (err) {
       console.error('Error fetching faculty participants:', err);
@@ -71,13 +84,16 @@ export default function FacultyParticipants() {
   };
 
   const currentEvent = events.find(e => e.id === selectedEventId) || events[0];
+  const isCarnival = currentEvent?.slug === 'carnival' || currentEvent?.name?.toLowerCase().includes('carnival');
 
   const filtered = participants.filter((p) => {
     const matchesEvent = !selectedEventId || p.event_id === selectedEventId;
-    const matchesSearch = p.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = p.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           p.erp_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          p.department?.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesEvent && matchesSearch;
+                          p.department?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          p.team_name?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesDept = !isCarnival || deptFilter === 'all' || matchDepartment(p.department, deptFilter);
+    return matchesEvent && matchesSearch && matchesDept;
   });
 
   return (
@@ -97,9 +113,19 @@ export default function FacultyParticipants() {
         </div>
 
         {currentEvent && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {isCarnival && profile?.department && (
+              <button
+                onClick={() => reportService.exportParticipants('xlsx', { eventId: currentEvent.id, eventName: currentEvent.name, department: profile.department })}
+                className="px-3.5 py-2 rounded-xl bg-primary-blue hover:bg-primary-blue-hover text-white text-xs font-bold shadow-soft flex items-center gap-1.5"
+                title={`Export only ${profile.department} participants`}
+              >
+                <Download className="w-4 h-4" />
+                <span>Export My Dept ({profile.department.includes('Electronics') ? 'EXTC' : profile.department})</span>
+              </button>
+            )}
             <button
-              onClick={() => reportService.exportParticipants('csv', { eventId: currentEvent.id, eventName: currentEvent.name })}
+              onClick={() => reportService.exportParticipants('csv', { eventId: currentEvent.id, eventName: currentEvent.name, department: deptFilter !== 'all' ? deptFilter : undefined })}
               className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold"
             >
               CSV
@@ -109,11 +135,73 @@ export default function FacultyParticipants() {
               className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-soft flex items-center gap-1.5"
             >
               <FileSpreadsheet className="w-4 h-4" />
-              <span>Export {currentEvent.name} Excel</span>
+              <span>Export All Excel</span>
             </button>
           </div>
         )}
       </div>
+
+      {/* Carnival Department Partitioning Notice & Switcher */}
+      {isCarnival && (
+        <div className="bg-gradient-to-r from-light-blue-50 to-white p-4 rounded-2xl border border-light-blue-200 shadow-xs space-y-2.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-primary-blue bg-light-blue-100 px-2.5 py-0.5 rounded-full">
+                Carnival Department Coordinator Node
+              </span>
+              <h4 className="text-xs font-bold text-navy-blue mt-1">
+                Filtering by: <span className="text-primary-blue">{deptFilter === 'all' ? 'All Departments (Institution-Wide)' : deptFilter}</span>
+              </h4>
+            </div>
+            {profile?.department && (
+              <span className="text-xs font-semibold text-slate-500">
+                Your Assigned Faculty Dept: <strong className="text-navy-blue">{profile.department}</strong>
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            {profile?.department && (
+              <button
+                type="button"
+                onClick={() => setDeptFilter(profile.department)}
+                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
+                  deptFilter === profile.department
+                    ? 'bg-primary-blue text-white shadow-xs'
+                    : 'bg-white border border-light-blue-200 text-primary-blue hover:bg-light-blue-50'
+                }`}
+              >
+                ★ My Dept ({profile.department.includes('Electronics') ? 'EXTC' : profile.department})
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setDeptFilter('all')}
+              className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
+                deptFilter === 'all'
+                  ? 'bg-navy-blue text-white'
+                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              All Departments
+            </button>
+            {[...COLLEGE_DEPARTMENTS, 'Other'].filter(d => !matchDepartment(profile?.department, d)).map(d => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => setDeptFilter(d)}
+                className={`px-2.5 py-1 rounded-xl text-xs font-medium transition-all ${
+                  deptFilter === d
+                    ? 'bg-navy-blue text-white font-bold'
+                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Filter and Event Switcher */}
       <div className="bg-white p-4 rounded-2xl border border-light-blue-200 shadow-sm flex flex-col sm:flex-row gap-3 items-center justify-between">

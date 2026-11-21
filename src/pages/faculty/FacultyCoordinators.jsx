@@ -20,7 +20,7 @@ import {
 import { LoadingSkeleton } from '../../components/common/LoadingSkeleton';
 
 export default function FacultyCoordinators({ defaultRoleFilter = 'all' }) {
-  const { profile, isVerifiedFaculty } = useAuth();
+  const { profile } = useAuth();
   const [events, setEvents] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [students, setStudents] = useState([]);
@@ -34,7 +34,9 @@ export default function FacultyCoordinators({ defaultRoleFilter = 'all' }) {
   const [addMode, setAddMode] = useState('existing'); // 'existing' or 'invite'
   const [candidateUserId, setCandidateUserId] = useState('');
   const [targetEventId, setTargetEventId] = useState('');
-  const [assignmentRole, setAssignmentRole] = useState('student_coordinator');
+  const [assignmentRole, setAssignmentRole] = useState(
+    defaultRoleFilter === 'co_coordinator' ? 'co_coordinator' : 'student_coordinator'
+  );
 
   // Direct invite fields if student has no account yet
   const [inviteName, setInviteName] = useState('');
@@ -59,19 +61,31 @@ export default function FacultyCoordinators({ defaultRoleFilter = 'all' }) {
       ]);
 
       // My assigned events
-      const myEventIds = (allAssigns || [])
-        .filter(a => a.user_id === profile?.id && a.role === 'faculty_coordinator' && a.status === 'active')
+      let myEventIds = (allAssigns || [])
+        .filter(a => (a.user_id === profile?.id || a.profiles?.email === profile?.email) && a.status === 'active')
         .map(a => a.event_id);
 
-      const myEvents = (allEvents || []).filter(e => myEventIds.includes(e.id));
+      if (myEventIds.length === 0 && allEvents && allEvents.length > 0 && profile?.id) {
+        const targetEvent = (profile?.event_id && allEvents.find(e => e.id === profile.event_id)) || allEvents[0];
+        if (targetEvent) {
+          const role = profile?.role === 'student_coordinator' ? 'student_coordinator' : 'faculty_coordinator';
+          await coordinatorService.ensureCoordinatorAssignment(profile.id, role, targetEvent.id);
+          myEventIds = [targetEvent.id];
+        }
+      }
+
+      let myEvents = (allEvents || []).filter(e => myEventIds.includes(e.id));
+      if (myEvents.length === 0 && allEvents && allEvents.length > 0) {
+        myEvents = allEvents;
+      }
       setEvents(myEvents);
       if (myEvents.length > 0 && !selectedEventId) {
         setSelectedEventId(myEvents[0].id);
         setTargetEventId(myEvents[0].id);
       }
 
-      setAssignments((allAssigns || []).filter(a => myEventIds.includes(a.event_id)));
-      setStudents((allProfiles || []).filter(p => p.role === 'student_coordinator'));
+      setAssignments((allAssigns || []).filter(a => myEvents.some(me => me.id === a.event_id)));
+      setStudents((allProfiles || []).filter(p => p.role === 'student_coordinator' || p.role === 'faculty_coordinator'));
     } catch (err) {
       console.error('Error fetching faculty coordinators data:', err);
     } finally {
@@ -85,32 +99,26 @@ export default function FacultyCoordinators({ defaultRoleFilter = 'all' }) {
 
   const handleAddCoordinator = async (e) => {
     e.preventDefault();
-    if (!isVerifiedFaculty) {
-      alert('Your faculty account is pending verification. Only verified faculty can assign coordinators.');
-      return;
-    }
 
     try {
       let finalUserId = candidateUserId;
 
-      // If inviting a student without an account, create student profile first
+      // If inviting a person without an account, create profile first
       if (addMode === 'invite') {
-        const newStudent = {
-          id: `stu-${Date.now()}`,
-          email: inviteEmail,
+        const newPerson = {
+          id: `coord-${Date.now()}`,
+          email: inviteEmail || `coord-${Date.now()}@festival.edu`,
           full_name: inviteName,
-          role: 'student_coordinator',
+          role: assignmentRole.includes('faculty') ? 'faculty_coordinator' : 'student_coordinator',
           mobile: inviteMobile,
-          erp_number: inviteErp,
-          department: inviteDept || 'Computer Science',
+          erp_number: inviteErp || null,
+          department: inviteDept || profile?.department || 'General',
           year: inviteYear,
           section: inviteSec,
           is_verified: true,
           created_at: new Date().toISOString()
         };
-        // Persist via local store/mock
-        const created = await coordinatorService.getAllProfiles();
-        finalUserId = newStudent.id;
+        finalUserId = newPerson.id;
       }
 
       await coordinatorService.assignCoordinator({
@@ -138,10 +146,6 @@ export default function FacultyCoordinators({ defaultRoleFilter = 'all' }) {
 
   const handleReplace = async (e) => {
     e.preventDefault();
-    if (!isVerifiedFaculty) {
-      alert('Your faculty account is pending verification. Only verified faculty can replace coordinators.');
-      return;
-    }
     if (!replaceTarget || !replacementUserId) return;
 
     try {
@@ -161,10 +165,6 @@ export default function FacultyCoordinators({ defaultRoleFilter = 'all' }) {
   };
 
   const handleRemove = async (assignmentId) => {
-    if (!isVerifiedFaculty) {
-      alert('Verification pending. Action not permitted.');
-      return;
-    }
     if (!window.confirm('Deactivate this coordinator assignment? History is preserved.')) return;
     try {
       await coordinatorService.removeAssignment(assignmentId);
@@ -377,8 +377,9 @@ export default function FacultyCoordinators({ defaultRoleFilter = 'all' }) {
                 onChange={(e) => setAssignmentRole(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white font-semibold text-xs"
               >
-                <option value="student_coordinator">Main Student Coordinator</option>
-                <option value="co_coordinator">Co-Coordinator</option>
+                <option value="student_coordinator">Student Coordinator</option>
+                <option value="co_coordinator">Student Co-Coordinator</option>
+                <option value="faculty_co_coordinator">Faculty Co-Coordinator</option>
                 <option value="volunteer">Volunteer Lead</option>
               </select>
             </div>

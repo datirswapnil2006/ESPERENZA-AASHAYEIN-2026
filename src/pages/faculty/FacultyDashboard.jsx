@@ -39,13 +39,27 @@ export default function FacultyDashboard() {
       ]);
 
       // Filter events assigned to current faculty
-      const myAssignments = (allAssigns || []).filter(
-        a => a.user_id === profile?.id && a.role === 'faculty_coordinator' && a.status === 'active'
+      let myAssignments = (allAssigns || []).filter(
+        a => (a.user_id === profile?.id || a.profiles?.email === profile?.email) && a.status === 'active'
       );
-      const myEventIds = myAssignments.map(a => a.event_id);
+      let myEventIds = myAssignments.map(a => a.event_id);
 
-      const myEvents = (allEvents || []).filter(e => myEventIds.includes(e.id));
-      const myEventParticipants = (allParts || []).filter(p => myEventIds.includes(p.event_id));
+      // If no assignment yet, auto-repair to target event (e.g. Carnival or profile.event_id)
+      if (myEventIds.length === 0 && allEvents && allEvents.length > 0 && profile?.id) {
+        const targetEvent = (profile?.event_id && allEvents.find(e => e.id === profile.event_id))
+          || allEvents.find(e => e.slug === 'carnival')
+          || allEvents[0];
+        if (targetEvent) {
+          await coordinatorService.ensureCoordinatorAssignment(profile.id, 'faculty_coordinator', targetEvent.id);
+          myEventIds = [targetEvent.id];
+        }
+      }
+
+      let myEvents = (allEvents || []).filter(e => myEventIds.includes(e.id));
+      if (myEvents.length === 0 && allEvents && allEvents.length > 0) {
+        myEvents = allEvents;
+      }
+      const myEventParticipants = (allParts || []).filter(p => myEvents.some(e => e.id === p.event_id));
 
       setAssignedEvents(myEvents);
       setAllAssignments(allAssigns || []);

@@ -51,9 +51,38 @@ export const participantService = {
       throw new Error(`ERP Number "${erp_number}" is already registered for this event.`);
     }
 
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && supabase) {
       try {
-        // Try transactional RPC first
+        const payloadToInsert = {
+          event_id,
+          form_id: rest.form_id || null,
+          full_name: rest.full_name,
+          erp_number,
+          email: rest.email,
+          mobile: rest.mobile,
+          department: rest.department,
+          year: rest.year,
+          section: rest.section || 'A',
+          is_team: Boolean(rest.is_team),
+          team_name: rest.team_name || null,
+          status: 'registered'
+        };
+        if (rest.team_members) {
+          payloadToInsert.team_members = rest.team_members;
+        }
+
+        const { data, error } = await supabase.from('participants').insert([payloadToInsert]).select().single();
+        if (!error && data) {
+          const newPart = { ...data, answers, team_members: rest.team_members };
+          appStore.addParticipant(newPart);
+          return newPart;
+        }
+      } catch (directErr) {
+        console.warn('Direct Supabase participant insert error, trying RPC:', directErr);
+      }
+
+      try {
+        // Try transactional RPC
         const formattedAnswers = answers
           ? Object.entries(answers).map(([field_id, answer_value]) => ({
               field_id,
@@ -70,7 +99,7 @@ export const participantService = {
           p_mobile: rest.mobile,
           p_department: rest.department,
           p_year: rest.year,
-          p_section: rest.section,
+          p_section: rest.section || 'A',
           p_is_team: Boolean(rest.is_team),
           p_team_name: rest.team_name || null,
           p_answers: formattedAnswers

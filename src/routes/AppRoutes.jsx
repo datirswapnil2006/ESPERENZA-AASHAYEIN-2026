@@ -109,6 +109,8 @@ export default function AppRoutes() {
       >
         <Route index element={<StudentDashboard />} />
         <Route path="events" element={<StudentAssignedEvents />} />
+        <Route path="forms" element={<FacultyFormBuilder />} />
+        <Route path="coordinators" element={<FacultyCoordinators defaultRoleFilter="co_coordinator" />} />
         <Route path="participants" element={<StudentParticipants />} />
         <Route path="profile" element={<StudentProfile />} />
       </Route>

@@ -25,7 +25,8 @@ export const coordinatorService = {
   },
 
   async getAllAssignments() {
-    if (isSupabaseConfigured) {
+    let supabaseAssignments = [];
+    if (isSupabaseConfigured && supabase) {
       try {
         const { data, error } = await supabase
           .from('event_assignments')
@@ -35,13 +36,16 @@ export const coordinatorService = {
             events:event_id(id, name, slug, festival_id)
           `)
           .order('created_at', { ascending: false });
-        if (!error && data) return data;
+        if (!error && Array.isArray(data)) {
+          supabaseAssignments = data;
+        }
       } catch (err) {
         console.warn('Supabase getAllAssignments error, using store:', err);
       }
     }
+
     // Enrich local assignments with user and event data
-    return appStore.assignments.map(assign => {
+    const localEnriched = appStore.assignments.map(assign => {
       const user = appStore.profiles.find(p => p.id === assign.user_id);
       const event = appStore.events.find(e => e.id === assign.event_id);
       return {
@@ -50,6 +54,15 @@ export const coordinatorService = {
         events: event,
       };
     });
+
+    const map = new Map();
+    supabaseAssignments.forEach(a => map.set(a.id || `${a.event_id}-${a.user_id}`, a));
+    localEnriched.forEach(a => {
+      const key = a.id || `${a.event_id}-${a.user_id}`;
+      if (!map.has(key)) map.set(key, a);
+    });
+
+    return Array.from(map.values());
   },
 
   async getAssignmentsByEvent(eventId) {
@@ -58,21 +71,86 @@ export const coordinatorService = {
   },
 
   async assignCoordinator({ eventId, userId, role, assignedBy, previousAssignmentId }) {
-    if (isSupabaseConfigured) {
+    const roleValue = role || 'faculty_coordinator';
+    const assignedByValue = assignedBy || userId;
+
+    if (isSupabaseConfigured && supabase) {
       try {
-        // Use RPC function if present
+        if (previousAssignmentId) {
+          await supabase.from('event_assignments').update({ status: 'replaced', updated_at: new Date().toISOString() }).eq('id', previousAssignmentId);
+        }
+
+        // Check if an existing assignment exists for this user and event
+        const { data: existing } = await supabase
+          .from('event_assignments')
+          .select('id')
+          .eq('event_id', eventId)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        let data = null;
+        let error = null;
+
+        if (existing) {
+          const res = await supabase
+            .from('event_assignments')
+            .update({ role: roleValue, status: 'active', updated_at: new Date().toISOString() })
+            .eq('id', existing.id)
+            .select()
+            .single();
+          data = res.data;
+          error = res.error;
+        } else {
+          const res = await supabase
+            .from('event_assignments')
+            .insert([{
+              event_id: eventId,
+              user_id: userId,
+              role: roleValue,
+              status: 'active',
+              assigned_by: assignedByValue
+            }])
+            .select()
+            .single();
+          data = res.data;
+          error = res.error;
+        }
+
+        if (!error && data) {
+          appStore.assignCoordinator({ eventId, userId, role: roleValue, assignedBy: assignedByValue, previousAssignmentId });
+          return data;
+        }
+      } catch (directErr) {
+        console.warn('Direct Supabase assignCoordinator error, trying RPC fallback:', directErr);
+      }
+
+      try {
+        // Fallback to RPC function if available
         const { data, error } = await supabase.rpc('assign_event_coordinator', {
           p_event_id: eventId,
           p_user_id: userId,
-          p_role: role,
+          p_role: roleValue,
           p_previous_assignment_id: previousAssignmentId || null
         });
         if (!error && data) return { id: data };
       } catch (err) {
-        console.warn('RPC assign_event_coordinator error, falling back to direct table update/store:', err);
+        console.warn('RPC assign_event_coordinator error, falling back to local store:', err);
       }
     }
-    return appStore.assignCoordinator({ eventId, userId, role, assignedBy, previousAssignmentId });
+    return appStore.assignCoordinator({ eventId, userId, role: roleValue, assignedBy: assignedByValue, previousAssignmentId });
+  },
+
+  async ensureCoordinatorAssignment(userId, role, eventId) {
+    if (!userId || !eventId) return null;
+    const all = await this.getAllAssignments();
+    const existing = all.find(a => a.user_id === userId && a.event_id === eventId && a.status === 'active');
+    if (existing) return existing;
+    return await this.assignCoordinator({
+      eventId,
+      userId,
+      role: role || 'faculty_coordinator',
+      assignedBy: userId
+    });
   },
 
   async replaceCoordinator({ previousAssignmentId, eventId, userId, role, assignedBy }) {

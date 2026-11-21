@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { coordinatorService } from '../../services/coordinatorService';
 import { eventService } from '../../services/eventService';
+import { reportService } from '../../services/reportService';
 import { 
   GraduationCap, 
   Search, 
@@ -12,7 +13,8 @@ import {
   Clock, 
   ShieldCheck, 
   ShieldAlert,
-  UserCheck
+  UserCheck,
+  Download
 } from 'lucide-react';
 import { LoadingSkeleton } from '../../components/common/LoadingSkeleton';
 
@@ -83,6 +85,14 @@ export default function AdminFacultyList() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => reportService.exportFacultyCoordinators('xlsx')}
+            className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-soft flex items-center gap-1.5 transition-all"
+            title="Download Faculty Coordinator Master Excel"
+          >
+            <Download className="w-4 h-4" />
+            <span>Export Excel</span>
+          </button>
           <span className="text-xs font-bold px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-200">
             {faculty.filter(f => f.is_verified).length} Verified
           </span>

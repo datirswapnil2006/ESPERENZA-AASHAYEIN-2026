@@ -17,11 +17,14 @@ import {
 import { LoadingSkeleton } from '../../components/common/LoadingSkeleton';
 
 export default function FacultyMyEvents() {
-  const { profile, isVerifiedFaculty } = useAuth();
+  const { profile } = useAuth();
   const [events, setEvents] = useState([]);
+  const [availableEvents, setAvailableEvents] = useState([]);
+  const [selectedToLink, setSelectedToLink] = useState('');
   const [assignments, setAssignments] = useState([]);
   const [participants, setParticipants] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [linking, setLinking] = useState(false);
 
   // Edit Event Modal
   const [editingEvent, setEditingEvent] = useState(null);
@@ -40,12 +43,33 @@ export default function FacultyMyEvents() {
         participantService.getAllParticipants()
       ]);
 
-      const myEventIds = (allAssigns || [])
-        .filter(a => a.user_id === profile?.id && a.role === 'faculty_coordinator' && a.status === 'active')
+      setAvailableEvents(allEvents || []);
+
+      let myEventIds = (allAssigns || [])
+        .filter(a => (a.user_id === profile?.id || a.profiles?.email === profile?.email) && a.status === 'active')
         .map(a => a.event_id);
 
-      setEvents((allEvents || []).filter(e => myEventIds.includes(e.id)));
-      setAssignments(allAssigns || []);
+      // Auto-assign / repair if coordinator has no assigned event yet
+      if (myEventIds.length === 0 && allEvents && allEvents.length > 0 && profile?.id) {
+        const targetEvent = (profile?.event_id && allEvents.find(e => e.id === profile.event_id))
+          || allEvents.find(e => e.slug === 'carnival')
+          || allEvents[0];
+        if (targetEvent) {
+          await coordinatorService.ensureCoordinatorAssignment(profile.id, 'faculty_coordinator', targetEvent.id);
+          myEventIds = [targetEvent.id];
+          const freshAssigns = await coordinatorService.getAllAssignments();
+          setAssignments(freshAssigns || []);
+        }
+      }
+
+      let matchedEvents = (allEvents || []).filter(e => myEventIds.includes(e.id));
+      if (matchedEvents.length === 0 && allEvents && allEvents.length > 0) {
+        matchedEvents = allEvents;
+      }
+      setEvents(matchedEvents);
+      if (allAssigns) {
+        setAssignments(allAssigns);
+      }
       setParticipants(allParts || []);
     } catch (err) {
       console.error('Error loading faculty events:', err);
@@ -54,15 +78,29 @@ export default function FacultyMyEvents() {
     }
   }
 
+  const handleLinkEvent = async () => {
+    if (!selectedToLink || !profile?.id) return;
+    setLinking(true);
+    try {
+      await coordinatorService.assignCoordinator({
+        eventId: selectedToLink,
+        userId: profile.id,
+        role: 'faculty_coordinator',
+        assignedBy: profile.id
+      });
+      await loadData();
+    } catch (err) {
+      alert('Failed to link event: ' + err.message);
+    } finally {
+      setLinking(false);
+    }
+  };
+
   useEffect(() => {
     loadData();
   }, [profile]);
 
   const openEditModal = (evt) => {
-    if (!isVerifiedFaculty) {
-      alert('Your faculty account is pending verification. Only verified faculty can edit event parameters.');
-      return;
-    }
     setEditingEvent(evt);
     setVenue(evt.venue || '');
     setRules(evt.rules || '');
@@ -104,8 +142,41 @@ export default function FacultyMyEvents() {
       {loading ? (
         <LoadingSkeleton lines={6} />
       ) : events.length === 0 ? (
-        <div className="bg-white rounded-3xl p-16 text-center border border-light-blue-200">
-          <p className="text-slate-500 font-medium">No assigned events linked to your faculty profile.</p>
+        <div className="bg-white rounded-3xl p-12 text-center border border-light-blue-200 shadow-soft max-w-xl mx-auto space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-light-blue-100 text-primary-blue flex items-center justify-center mx-auto">
+            <Calendar className="w-6 h-6" />
+          </div>
+          <h3 className="text-lg font-bold text-navy-blue">Select Your Assigned Event</h3>
+          <p className="text-xs text-slate-500 max-w-md mx-auto">
+            Choose the festival event you are coordinating to immediately unlock form configuration, coordinator assignments, and participant management.
+          </p>
+          {availableEvents.length > 0 ? (
+            <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2">
+              <select
+                value={selectedToLink}
+                onChange={(e) => setSelectedToLink(e.target.value)}
+                className="w-full sm:w-64 px-3.5 py-2.5 rounded-xl border border-light-blue-200 text-xs font-semibold bg-white text-navy-blue focus:outline-none focus:ring-2 focus:ring-primary-blue"
+              >
+                <option value="">-- Choose Festival Event --</option>
+                {availableEvents.map(evt => (
+                  <option key={evt.id} value={evt.id}>
+                    {evt.name} ({evt.festival_slug === 'esperanza' ? 'Esperenza' : 'Aashayein'})
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={handleLinkEvent}
+                disabled={!selectedToLink || linking}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-primary-blue hover:bg-primary-blue-hover disabled:opacity-50 text-white text-xs font-bold transition-all"
+              >
+                {linking ? 'Linking...' : 'Link Event'}
+              </button>
+            </div>
+          ) : (
+            <p className="text-xs text-amber-600 font-semibold">
+              No festival events found in the database. Super Admin can add events from the Admin Console.
+            </p>
+          )}
         </div>
       ) : (
         <div className="space-y-6">

@@ -3,6 +3,7 @@ import { coordinatorService } from './coordinatorService';
 import { participantService } from './participantService';
 import { formService } from './formService';
 import { exportToCSV, exportToXLSX, exportConsolidatedWorkbook } from '../utils/exportHelpers';
+import { matchDepartment } from '../utils/departments';
 
 export const reportService = {
   async getExportData() {
@@ -19,36 +20,56 @@ export const reportService = {
 
   // Export Faculty Coordinators List (Global or Event-Specific)
   async exportFacultyCoordinators(format = 'xlsx', filterOptions = {}) {
-    const { assignments, events } = await this.getExportData();
-    let facultyAssignments = assignments.filter(a => a.role === 'faculty_coordinator' && a.status === 'active');
+    const { assignments, events, profiles } = await this.getExportData();
 
-    // If filtered by eventId, only export faculty for this specific event
-    if (filterOptions.eventId) {
-      facultyAssignments = facultyAssignments.filter(a => a.event_id === filterOptions.eventId);
-    } else if (filterOptions.festivalSlug) {
-      const festivalEventIds = events.filter(e => e.festival_slug === filterOptions.festivalSlug).map(e => e.id);
-      facultyAssignments = facultyAssignments.filter(a => festivalEventIds.includes(a.event_id));
+    let data = [];
+    if (filterOptions.eventId || filterOptions.festivalSlug) {
+      let facultyAssignments = assignments.filter(a => a.role === 'faculty_coordinator' && a.status === 'active');
+      if (filterOptions.eventId) {
+        facultyAssignments = facultyAssignments.filter(a => a.event_id === filterOptions.eventId);
+      } else if (filterOptions.festivalSlug) {
+        const festivalEventIds = events.filter(e => e.festival_slug === filterOptions.festivalSlug).map(e => e.id);
+        facultyAssignments = facultyAssignments.filter(a => festivalEventIds.includes(a.event_id));
+      }
+      data = facultyAssignments.map((a, idx) => {
+        const event = events.find(e => e.id === a.event_id);
+        return {
+          'S.No': idx + 1,
+          'Faculty Coordinator': a.profiles?.full_name || 'N/A',
+          'Department': a.profiles?.department || 'N/A',
+          'Official Email': a.profiles?.email || 'N/A',
+          'Mobile Number (WhatsApp)': a.profiles?.mobile || 'N/A',
+          'Assigned Competition': event?.name || 'N/A',
+          'Festival': event?.festival_slug === 'esperanza' ? 'Esperenza' : 'Aashayein',
+          'Status': 'Active Coordinator',
+          'Assigned Date': a.created_at ? new Date(a.created_at).toLocaleDateString() : 'N/A',
+        };
+      });
+    } else {
+      // Complete Institutional Faculty Roster (From Profiles & Assignments)
+      const facultyProfiles = (profiles || []).filter(p => p.role === 'faculty_coordinator');
+      data = facultyProfiles.map((f, idx) => {
+        const myAssigns = (assignments || []).filter(a => (a.user_id === f.id || a.profiles?.email === f.email) && a.status === 'active');
+        const assignedEventNames = myAssigns
+          .map(a => events.find(e => e.id === a.event_id)?.name)
+          .filter(Boolean);
+
+        return {
+          'S.No': idx + 1,
+          'Faculty Coordinator': f.full_name || 'N/A',
+          'Department': f.department || 'N/A',
+          'Official Email': f.email || 'N/A',
+          'Mobile Number (WhatsApp)': f.mobile || 'N/A',
+          'Assigned Competitions': assignedEventNames.length ? assignedEventNames.join(', ') : 'General Coordinator',
+          'Account Status': f.is_verified ? 'Verified & Active' : 'Pending Verification',
+          'Registration Date': f.created_at ? new Date(f.created_at).toLocaleDateString() : 'N/A',
+        };
+      });
     }
-
-    const data = facultyAssignments.map((a, idx) => {
-      const event = events.find(e => e.id === a.event_id);
-      return {
-        'S.No': idx + 1,
-        'Faculty Name': a.profiles?.full_name || 'N/A',
-        'Employee ID': a.profiles?.employee_id || 'N/A',
-        'Designation': a.profiles?.designation || 'N/A',
-        'Department': a.profiles?.department || 'N/A',
-        'Email': a.profiles?.email || 'N/A',
-        'Mobile': a.profiles?.mobile || 'N/A',
-        'Assigned Event': event?.name || 'N/A',
-        'Festival': event?.festival_slug === 'esperanza' ? 'Esperenza' : 'Aashayein',
-        'Assigned Date': a.created_at ? new Date(a.created_at).toLocaleDateString() : 'N/A',
-      };
-    });
 
     const filename = filterOptions.eventName 
       ? `${filterOptions.eventName.replace(/\s+/g, '_')}_Faculty_Coordinators`
-      : 'Faculty_Coordinators_List';
+      : 'Faculty_Coordinators_Master_List';
 
     if (format === 'csv') exportToCSV(data, filename);
     else exportToXLSX(data, filename, 'Faculty Coordinators');
@@ -108,6 +129,11 @@ export const reportService = {
       filtered = filtered.filter(p => p.festival_slug === filterOptions.festivalSlug);
     }
 
+    // Filter by department if specified (e.g. for Carnival or department-specific rosters)
+    if (filterOptions.department && filterOptions.department !== 'all') {
+      filtered = filtered.filter(p => matchDepartment(p.department, filterOptions.department));
+    }
+
     // If an eventId is specified, fetch the custom form fields for this event to generate named columns
     let customFields = [];
     if (filterOptions.eventId) {
@@ -129,13 +155,18 @@ export const reportService = {
         'Student Full Name': p.full_name,
         'ERP Number': p.erp_number,
         'College Email': p.email,
-        'Mobile Number': p.mobile,
+        'Mobile Number (WhatsApp)': p.mobile,
         'Department': p.department,
         'Academic Year': p.year,
         'Section': p.section,
         'Event Name': p.event_name || event?.name || 'N/A',
         'Festival': p.festival_name || (event?.festival_slug === 'esperanza' ? 'Esperenza' : 'Aashayein'),
         'Participation Format': p.is_team ? `Team (${p.team_name || 'N/A'})` : 'Solo Individual',
+        'Team Name': p.team_name || 'N/A',
+        'Team Size': p.team_members?.length ? p.team_members.length + 1 : (p.is_team ? 'Team' : 1),
+        'Team Members Details': p.team_members && p.team_members.length
+          ? p.team_members.map((m, mi) => `Member ${mi + 2}: ${m.name || m.full_name || ''} [${m.year || m.standard || ''}, WhatsApp: ${m.mobile || ''}, ${m.department || m.school || ''}]`).join(' | ')
+          : 'N/A',
         'Registration Status': (p.status || 'registered').toUpperCase(),
         'Registration Date': p.created_at ? new Date(p.created_at).toLocaleString() : 'N/A',
       };
@@ -153,12 +184,102 @@ export const reportService = {
       return row;
     });
 
+    const deptSuffix = filterOptions.department && filterOptions.department !== 'all' ? `_${filterOptions.department.replace(/\s+/g, '_')}` : '';
     const prefix = filterOptions.eventName 
-      ? `${filterOptions.eventName.replace(/\s+/g, '_')}_Participants` 
-      : 'All_Festival_Participants';
+      ? `${filterOptions.eventName.replace(/\s+/g, '_')}${deptSuffix}_Participants` 
+      : `All_Festival_Participants${deptSuffix}`;
 
     if (format === 'csv') exportToCSV(data, prefix);
     else exportToXLSX(data, prefix, 'Participants');
+  },
+
+  // Export Carnival or Any Event Department-Wise (Multi-Sheet Workbook)
+  async exportEventDepartmentWise(eventId, eventName, format = 'xlsx') {
+    const { participants, events, assignments } = await this.getExportData();
+    const event = events.find(e => e.id === eventId);
+    const eventParticipants = participants.filter(p => p.event_id === eventId);
+    const eventAssignments = assignments.filter(a => a.event_id === eventId && a.status === 'active');
+
+    const departments = [
+      { key: 'EXTC', name: 'EXTC', sheetName: 'EXTC' },
+      { key: 'Civil', name: 'Civil', sheetName: 'Civil' },
+      { key: 'Mech', name: 'Mech', sheetName: 'Mech' },
+      { key: 'AIDS', name: 'AIDS', sheetName: 'AIDS' },
+      { key: 'CSE(IOT)', name: 'CSE(IOT)', sheetName: 'CSE_IOT' },
+      { key: 'MCA', name: 'MCA', sheetName: 'MCA' },
+      { key: 'MBA', name: 'MBA', sheetName: 'MBA' },
+      { key: 'CSE', name: 'CSE', sheetName: 'CSE' },
+      { key: 'IT', name: 'IT', sheetName: 'IT' },
+      { key: 'Other', name: 'Other Departments', sheetName: 'Other' },
+    ];
+
+    const matchDept = (deptVal, targetDept) => {
+      return matchDepartment(deptVal, targetDept.key);
+    };
+
+    const formatRow = (p, idx) => ({
+      'S.No': idx + 1,
+      'Student Full Name': p.full_name,
+      'ERP Number': p.erp_number,
+      'College Email': p.email,
+      'Mobile Number (WhatsApp)': p.mobile,
+      'Department': p.department,
+      'Academic Year': p.year,
+      'Section': p.section,
+      'Format': p.is_team ? `Team (${p.team_name || ''})` : 'Solo Individual',
+      'Team Name': p.team_name || 'N/A',
+      'Team Members': p.team_members && p.team_members.length
+        ? p.team_members.map((m, mi) => `M${mi + 2}: ${m.name || m.full_name} (${m.year || m.standard || ''}, WhatsApp: ${m.mobile || ''}, ${m.department || ''})`).join(' | ')
+        : 'N/A',
+      'Status': (p.status || 'registered').toUpperCase(),
+      'Registered Date': p.created_at ? new Date(p.created_at).toLocaleString() : 'N/A',
+    });
+
+    // 1. Department Summary Sheet
+    const summaryData = departments.map((dept, i) => {
+      const deptParts = eventParticipants.filter(p => matchDept(p.department, dept));
+      const deptFaculty = eventAssignments.filter(a => a.role === 'faculty_coordinator' && matchDept(a.profiles?.department, dept));
+      const deptStudents = eventAssignments.filter(a => a.role !== 'faculty_coordinator' && matchDept(a.profiles?.department, dept));
+
+      return {
+        'S.No': i + 1,
+        'Department': dept.name,
+        'Total Participants': deptParts.length,
+        'Solo Entries': deptParts.filter(p => !p.is_team).length,
+        'Team Entries': deptParts.filter(p => p.is_team).length,
+        'Faculty Coordinators': deptFaculty.map(f => f.profiles?.full_name).join(', ') || 'Pending',
+        'Student Coordinators': deptStudents.map(s => s.profiles?.full_name).join(', ') || 'Pending'
+      };
+    });
+
+    const sheets = [
+      {
+        sheetName: 'All_Registrations',
+        data: eventParticipants.length ? eventParticipants.map(formatRow) : [{ 'Status': 'No participants registered yet' }]
+      },
+      {
+        sheetName: 'Department_Summary',
+        data: summaryData
+      }
+    ];
+
+    // Dedicated sheet for every department
+    departments.forEach(dept => {
+      const deptParts = eventParticipants.filter(p => matchDept(p.department, dept));
+      sheets.push({
+        sheetName: dept.sheetName.substring(0, 31),
+        data: deptParts.length
+          ? deptParts.map(formatRow)
+          : [{ 'Notice': `No student registrations from ${dept.name} recorded yet.` }]
+      });
+    });
+
+    const filename = `${(eventName || 'Carnival').replace(/\s+/g, '_')}_Department_Wise_Report`;
+    if (format === 'csv') {
+      exportToCSV(eventParticipants.map(formatRow), filename);
+    } else {
+      exportConsolidatedWorkbook(sheets, filename);
+    }
   },
 
   // Export Complete Event Package (Participants + Faculty + Student Coordinators for that event ONLY)
