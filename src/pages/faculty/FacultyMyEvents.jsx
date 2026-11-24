@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { eventService } from '../../services/eventService';
 import { coordinatorService } from '../../services/coordinatorService';
 import { participantService } from '../../services/participantService';
+import { matchDepartment } from '../../utils/departments';
 import Modal from '../../components/common/Modal';
 import { 
   Calendar, 
@@ -182,7 +183,8 @@ export default function FacultyMyEvents() {
         <div className="space-y-6">
           {events.map((evt) => {
             const evtCoords = assignments.filter(a => a.event_id === evt.id && a.status === 'active');
-            const evtParts = participants.filter(p => p.event_id === evt.id);
+            const isCarnival = evt?.slug === 'carnival' || evt?.name?.toLowerCase().includes('carnival');
+            const evtParts = participants.filter(p => p.event_id === evt.id && (!isCarnival || !profile?.department || matchDepartment(p.department, profile.department)));
 
             return (
               <div

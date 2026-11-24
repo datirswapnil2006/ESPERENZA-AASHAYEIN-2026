@@ -5,6 +5,7 @@ import { eventService } from '../../services/eventService';
 import { coordinatorService } from '../../services/coordinatorService';
 import { participantService } from '../../services/participantService';
 import { announcementService } from '../../services/announcementService';
+import { matchDepartment } from '../../utils/departments';
 import StatCard from '../../components/common/StatCard';
 import { 
   Calendar, 
@@ -74,7 +75,16 @@ export default function StudentDashboard() {
       setCoCoordinators(fellows);
 
       // Event participants
-      const myParts = (allParts || []).filter(p => myEventIds.includes(p.event_id));
+      const myParts = (allParts || []).filter(p => {
+        const matchesEvent = myEventIds.includes(p.event_id);
+        if (!matchesEvent) return false;
+        const evt = myEvents.find(e => e.id === p.event_id);
+        const isCarnival = evt?.slug === 'carnival' || evt?.name?.toLowerCase().includes('carnival');
+        if (isCarnival && profile?.department) {
+          return matchDepartment(p.department, profile.department);
+        }
+        return true;
+      });
       setParticipants(myParts);
 
       setAnnouncements(allAnns || []);

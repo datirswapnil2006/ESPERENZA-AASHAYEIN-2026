@@ -69,7 +69,7 @@ export default function StudentParticipants() {
                           p.erp_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           p.department?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           p.team_name?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesDept = !isCarnival || deptFilter === 'all' || matchDepartment(p.department, deptFilter);
+    const matchesDept = !isCarnival || !profile?.department || matchDepartment(p.department, profile.department);
     return matchesEvent && matchesSearch && matchesDept;
   });
 
@@ -95,65 +95,20 @@ export default function StudentParticipants() {
         </span>
       </div>
 
-      {/* Carnival Department Partitioning for Student Coordinators */}
+      {/* Carnival Department Restriction Notice */}
       {isCarnival && (
-        <div className="bg-gradient-to-r from-light-blue-50 to-white p-4 rounded-2xl border border-light-blue-200 shadow-xs space-y-2.5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div>
-              <span className="text-[10px] font-black uppercase tracking-wider text-primary-blue bg-light-blue-100 px-2.5 py-0.5 rounded-full">
-                Carnival Department Coordinator Desk
-              </span>
-              <h4 className="text-xs font-bold text-navy-blue mt-1">
-                Showing entries for: <span className="text-primary-blue">{deptFilter === 'all' ? 'All Departments' : deptFilter}</span>
-              </h4>
-            </div>
-            {profile?.department && (
-              <span className="text-xs font-semibold text-slate-500">
-                Your Department: <strong className="text-navy-blue">{profile.department}</strong>
-              </span>
-            )}
+        <div className="bg-gradient-to-r from-light-blue-50 to-white p-4 rounded-2xl border border-light-blue-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-wider text-primary-blue bg-light-blue-100 px-2.5 py-0.5 rounded-full">
+              Carnival Department Coordinator Desk
+            </span>
+            <h4 className="text-xs font-bold text-navy-blue mt-1">
+              Department Assigned: <span className="text-primary-blue font-extrabold">{profile?.department || 'Institution-wide'}</span>
+            </h4>
           </div>
-
-          <div className="flex flex-wrap items-center gap-1.5 pt-1">
-            {profile?.department && (
-              <button
-                type="button"
-                onClick={() => setDeptFilter(profile.department)}
-                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
-                  deptFilter === profile.department
-                    ? 'bg-primary-blue text-white shadow-xs'
-                    : 'bg-white border border-light-blue-200 text-primary-blue hover:bg-light-blue-50'
-                }`}
-              >
-                ★ My Dept ({profile.department.includes('Electronics') ? 'EXTC' : profile.department})
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setDeptFilter('all')}
-              className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
-                deptFilter === 'all'
-                  ? 'bg-navy-blue text-white'
-                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              All Departments
-            </button>
-            {[...COLLEGE_DEPARTMENTS, 'Other'].filter(d => !matchDepartment(profile?.department, d)).map(d => (
-              <button
-                key={d}
-                type="button"
-                onClick={() => setDeptFilter(d)}
-                className={`px-2.5 py-1 rounded-xl text-xs font-medium transition-all ${
-                  deptFilter === d
-                    ? 'bg-navy-blue text-white font-bold'
-                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {d}
-              </button>
-            ))}
-          </div>
+          <span className="text-xs font-semibold text-slate-500">
+            Showing only <strong className="text-navy-blue">{profile?.department}</strong> participants ({filtered.length} enrolled)
+          </span>
         </div>
       )}
 

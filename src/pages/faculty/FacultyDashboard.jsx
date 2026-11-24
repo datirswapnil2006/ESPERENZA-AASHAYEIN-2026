@@ -6,6 +6,7 @@ import { coordinatorService } from '../../services/coordinatorService';
 import { participantService } from '../../services/participantService';
 import { formService } from '../../services/formService';
 import { reportService } from '../../services/reportService';
+import { matchDepartment } from '../../utils/departments';
 import StatCard from '../../components/common/StatCard';
 import { 
   Calendar, 
@@ -59,7 +60,16 @@ export default function FacultyDashboard() {
       if (myEvents.length === 0 && allEvents && allEvents.length > 0) {
         myEvents = allEvents;
       }
-      const myEventParticipants = (allParts || []).filter(p => myEvents.some(e => e.id === p.event_id));
+      const myEventParticipants = (allParts || []).filter(p => {
+        const matchesEvent = myEvents.some(e => e.id === p.event_id);
+        if (!matchesEvent) return false;
+        const evt = myEvents.find(e => e.id === p.event_id);
+        const isCarnival = evt?.slug === 'carnival' || evt?.name?.toLowerCase().includes('carnival');
+        if (isCarnival && profile?.department) {
+          return matchDepartment(p.department, profile.department);
+        }
+        return true;
+      });
 
       setAssignedEvents(myEvents);
       setAllAssignments(allAssigns || []);
@@ -104,7 +114,15 @@ export default function FacultyDashboard() {
         <div className="flex items-center gap-2">
           {assignedEvents.length > 0 && (
             <button
-              onClick={() => reportService.exportEventCompleteReport(assignedEvents[0].id, assignedEvents[0].name, 'xlsx')}
+              onClick={() => {
+                const firstEvt = assignedEvents[0];
+                const isCarnival = firstEvt?.slug === 'carnival' || firstEvt?.name?.toLowerCase().includes('carnival');
+                if (isCarnival && profile?.department) {
+                  reportService.exportParticipants('xlsx', { eventId: firstEvt.id, eventName: firstEvt.name, department: profile.department });
+                } else {
+                  reportService.exportEventCompleteReport(firstEvt.id, firstEvt.name, 'xlsx');
+                }
+              }}
               className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-soft flex items-center gap-1.5 transition-all"
             >
               <Download className="w-4 h-4" />
